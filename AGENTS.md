@@ -45,12 +45,12 @@ Baca `Rancangan Portal Lomba Laravel.md` (297 baris). Peta section:
 | Database | **MySQL ≥ 8.0** | Transaksional relasional, indeks komposit |
 | Scraper (layanan terpisah) | **Python FastAPI** | **Bukan** Artisan command, **bukan** PHP scraper |
 | AI scraping libs | **Firecrawl** & **Crawl4AI** | Bypass proteksi bot, Markdown siap-LLM |
-| LLM | **OpenAI GPT-4o-mini** | Ekstraksi entitas HTML→JSON terstandar |
+| LLM | **DeepSeek v4 Flash** (via OpenCode Zen, OpenAI-compatible) | Ekstraksi entitas HTML→JSON terstandar; cost rendah, response cepat |
 
 ### 3.2 Arsitektur
 - **Microservices split**: Laravel = aplikasi utama; Python = scraper. Tidak boleh digabung.
-- **Pipeline scraping** (mingguan, lihat §3.4):
-  `Laravel Scheduler` → `Redis queue` → `Python worker (paralel)` → `Crawl4AI/Firecrawl` → `LLM (GPT-4o-mini)` → `JSON payload` → `Laravel` → `MySQL`
+- **Pipeline scraping** (2× seminggu, lihat §3.4):
+  `Laravel Scheduler` → `Redis queue` → `Python worker (paralel)` → `Firecrawl` → `LLM (DeepSeek v4 Flash via OpenCode Zen)` → `JSON payload` → `Laravel` → `MySQL`
 - Reverb berjalan **native** di ekosistem PHP; tidak butuh Node sebagai sidecar.
 
 ### 3.3 Skema Database (3NF, 5 tabel)
@@ -66,10 +66,10 @@ Baca `Rancangan Portal Lomba Laravel.md` (297 baris). Peta section:
 - `users.role` menentukan fitur kolaborasi (lihat §3.5).
 
 ### 3.4 Scraping & Jadwal
-- **Frekuensi: mingguan** (deep crawl). Bukan harian. Alasan eksplisit di rancangan: optimasi resource & anti-rate-limit. **Jangan dinaikkan tanpa diskusi.**
+- **Frekuensi: 2× seminggu** (Senin 05:00 + Jumat 15:00 WIB). Bukan harian. Alasan eksplisit: Senin = info segar untuk showcase setelah upacara sekolah; Jumat = info untuk weekend planning. **Jangan dinaikkan tanpa diskusi.**
 - **Target**: 6 portal Indonesia tercantum di §1. Tambah portal baru → wajib cek ToS & rate-limit target dulu.
 - **Stealth parameters** (wajib): rotasi User-Agent, browser fingerprinting, simulasi scroll & delay acak.
-- **Pipeline data**: HTML → Markdown (Crawl4AI/Firecrawl) → LLM bersihkan iklan/navigasi/copyright → JSON sesuai skema → hash MD5 → INSERT ke `competitions`.
+- **Pipeline data**: HTML → Markdown (Firecrawl) → LLM (DeepSeek v4 Flash via OpenCode Zen) bersihkan iklan/navigasi/copyright → JSON sesuai skema → hash MD5 → INSERT ke `competitions`.
 - **Window eksekusi**: jadwalkan di hari/jam lalu lintas rendah portal target (detail ada di §1).
 
 ### 3.5 Chat Real-Time (Reverb)
@@ -146,8 +146,9 @@ Saat kode sudah ada, perintah standar yang akan dipakai:
 - **Fase 2** — Auth + RBAC: `RoleMiddleware` (alias `role:admin,teacher`), `institution` field, profile form lokal-ID
 - **Fase 3** — Fondasi UI Neo-Brutalisme: Tailwind tokens (palette HEX, font families, box-shadow tanpa blur, borderWidth 3), Google Fonts (Syne/Space Grotesk/JetBrains Mono), `Components/Brutal/*` (Button, Card, Badge, Link, Heading), `AuthenticatedLayout`/`GuestLayout` lokal-ID
 - **Fase 4** — Modul Kompetisi read-only: `CompetitionController` (index/show), filter (level/status/pencarian), `Pages/Competitions/{Index,Show}`, `Components/Brutal/CompetitionCard`, `CompetitionFactory` + `CompetitionSeeder` (8 lomba contoh), nav "Lomba" di `AuthenticatedLayout` + CTA "Jelajahi Lomba" di Welcome/Dashboard
+- **Fase 5** — Scraper integration Laravel ↔ Python: `ScraperService` (HTTP client + retry), `CompetitionIngestor` (dedup + auto-create public room), `ScrapePortalJob` (queueable + backoff 60/300/900s), `ScrapeCommand` (artisan `--portal`/`--max-pages`/`--sync`), `NewCompetitionDetected` event + `LogNewCompetition` listener (broadcast stub), scheduler Senin 05:00 + Jumat 15:00 WIB. Python: `FirecrawlClient` (async httpx), `LLMExtractor` (OpenAI SDK + custom base_url ke OpenCode Zen), `Portals` registry 6 portal Indonesia, `scraper.py` orchestrator dengan `asyncio.gather` (concurrency=4)
 
-Test lulus: **49 passed, 168 assertions** (`php artisan test`). Screenshot preview: `docs/screenshots/`.
+Test lulus: **49 passed, 168 assertions** (`php artisan test`) per `6e5a6a7`. Screenshot preview: `docs/screenshots/`.
 
 ## 7. TODO & Keputusan yang Belum Diambil
 - [ ] Conventional Commits penuh (scope, body, footer) — perlu keputusan tim

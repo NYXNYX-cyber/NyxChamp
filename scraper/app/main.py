@@ -3,6 +3,7 @@
 Endpoint yang tersedia:
 - GET  /health   — liveness, tanpa auth
 - POST /scrape   — endpoint utama, butuh token (lihat SERVICE_TOKEN)
+- GET  /portals  — list portal target yang dikenal
 
 Service ini adalah layanan terpisah dari Laravel (lihat Rancangan §2
 & AGENTS.md §3.2). Berjalan di port 8001 by default, tidak dipublish
@@ -62,10 +63,11 @@ def list_portals() -> dict[str, list[str]]:
 
 
 @app.post("/scrape", response_model=ScrapeResponse, dependencies=[Depends(require_token)])
-def scrape(req: ScrapeRequest) -> ScrapeResponse:
+async def scrape(req: ScrapeRequest) -> ScrapeResponse:
     if req.portal not in TARGET_PORTALS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Portal '{req.portal}' tidak ada di TARGET_PORTALS",
         )
-    return scrape_portal(req)
+    return await scrape_portal(req)
+

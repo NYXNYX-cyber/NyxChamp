@@ -3,8 +3,9 @@ uvicorn[standard]>=0.49
 pydantic>=2.13
 httpx>=0.28
 python-dotenv>=1.0
+openai>=1.59
 
-# Dependensi Fase 5 (belum dipakai di skeleton):
-# crawl4ai==0.7.4
-# firecrawl-py==4.5.0
-# openai==1.59.8
+# Test deps
+pytest>=8.3
+pytest-asyncio>=0.24
+respx>=0.21
