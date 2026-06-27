@@ -3,10 +3,18 @@
 > Repo ini **masih dalam fase desain**. Belum ada kode, belum ada `composer.json`/`package.json`, belum ada layanan Python. Satu-satunya sumber kebenaran adalah `Rancangan Portal Lomba Laravel.md` di root.
 
 ## 1. Status Repo
-- **Fase**: desain / pra-implementasi
-- **Git**: sudah di-init di branch `main` (baru saja, 2026-06-27)
+- **Fase**: implementasi awal (Fase 0–3 selesai, lihat §6b)
+- **Git**: sudah di-init di branch `main` (2026-06-27)
 - **Remote**: `origin` = `https://github.com/NYXNYX-cyber/NyxChamp.git` (token tersimpan di `.git/config` lokal, tidak akan ter-push)
-- **Tidak ada** di repo ini (sengaja): kode, dependency, migration, file `.env`
+- **Akun dev seed**: `admin@nyxchamp.test` / `guru@nyxchamp.test` / `siswa@nyxchamp.test` (semua password: `password`)
+
+### Stack yang sudah terpasang
+- **Laravel 13.17** + Breeze (Inertia + React + TypeScript) + Reverb
+- **Python 3.14** + FastAPI + Pydantic di `scraper/` (layanan terpisah)
+- **SQLite** untuk dev (`.env` default). MySQL 8+ dipakai via Docker mulai Fase 6
+- **Cache/Queue/Session** = `database` driver (SQLite). Switch ke `redis` di prod
+
+> Lihat §6 untuk perintah dev harian. Untuk MySQL/Redis lokal, lihat `docker-compose.yml` (akan ditambah saat Fase 6).
 
 ## 2. Cara Menavigasi Dokumen Rancangan
 
@@ -131,6 +139,14 @@ Saat kode sudah ada, perintah standar yang akan dipakai:
 - `npm run build` — build frontend untuk produksi
 
 > **Jangan tulis README/runbook panjang** tentang cara setup di masa depan. Saat kode ada, update §6 dengan perintah aktual yang terbukti jalan.
+
+## 6b. Fase yang Sudah Selesai
+- **Fase 0** — Fondasi: Laravel 13.17 + Breeze (Inertia + React + TS) + Reverb + Python FastAPI scraper skeleton di `scraper/`
+- **Fase 1** — Skema DB 3NF (5 tabel: users, competitions, chat_rooms, chat_room_members, chat_messages) + Eloquent models + `CompetitionHash` service
+- **Fase 2** — Auth + RBAC: `RoleMiddleware` (alias `role:admin,teacher`), `institution` field, profile form lokal-ID
+- **Fase 3** — Fondasi UI Neo-Brutalisme: Tailwind tokens (palette HEX, font families, box-shadow tanpa blur, borderWidth 3), Google Fonts (Syne/Space Grotesk/JetBrains Mono), `Components/Brutal/*` (Button, Card, Badge, Link, Heading), `AuthenticatedLayout`/`GuestLayout` lokal-ID
+
+Test lulus: **31 passed, 70 assertions** (`php artisan test`). Screenshot preview: `docs/screenshots/`.
 
 ## 7. TODO & Keputusan yang Belum Diambil
 - [ ] Conventional Commits penuh (scope, body, footer) — perlu keputusan tim

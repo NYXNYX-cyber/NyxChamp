@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Neo-Brutalisme base styles. Aturan lihat AGENTS.md §3.6.
+ * Body pakai cream background; teks default hitam pekat.
+ */
+@layer base {
+    html {
+        font-family: 'Space Grotesk', system-ui, sans-serif;
+    }
+
+    body {
+        @apply bg-cream text-ink antialiased;
+    }
+
+    h1, h2, h3, h4 {
+        @apply font-header;
+    }
+
+    h1 {
+        @apply font-display;
+    }
+}
+
+/*
+ * Komponen brutal: kelas utilitas siap pakai di Blade/React.
+ * Pakai di className: className="brutal-box"
+ */
+@layer components {
+    .brutal-box {
+        @apply border-3 border-ink shadow-brutal bg-white;
+    }
+
+    .brutal-box-cream {
+        @apply border-3 border-ink shadow-brutal bg-cream;
+    }
+
+    .brutal-btn {
+        @apply inline-flex items-center justify-center
+               border-3 border-ink bg-brutal-pink text-ink
+               px-4 py-2 font-header font-bold uppercase tracking-wide
+               shadow-brutal transition-all
+               hover:-translate-x-[3px] hover:-translate-y-[3px]
+               hover:shadow-brutal-hover
+               active:translate-x-[2px] active:translate-y-[2px]
+               active:shadow-brutal-press
+               disabled:opacity-50 disabled:cursor-not-allowed
+               disabled:hover:translate-x-0 disabled:hover:translate-y-0
+               disabled:hover:shadow-brutal;
+    }
+
+    .brutal-btn-yellow {
+        @apply brutal-btn bg-brutal-yellow;
+    }
+
+    .brutal-btn-emerald {
+        @apply brutal-btn bg-brutal-emerald text-white;
+    }
+
+    .brutal-btn-ink {
+        @apply brutal-btn bg-ink text-cream;
+    }
+
+    .brutal-input {
+        @apply block w-full border-3 border-ink bg-white
+               px-3 py-2 font-mono text-ink
+               shadow-brutal-sm
+               focus:outline-none focus:shadow-brutal
+               focus:translate-x-[-1px] focus:translate-y-[-1px]
+               placeholder:text-ink/40;
+    }
+
+    .brutal-badge {
+        @apply inline-flex items-center border-2 border-ink
+               px-2 py-0.5 font-mono text-xs font-bold uppercase;
+    }
+}
