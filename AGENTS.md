@@ -148,7 +148,7 @@ Saat kode sudah ada, perintah standar yang akan dipakai:
 - **Fase 4** — Modul Kompetisi read-only: `CompetitionController` (index/show), filter (level/status/pencarian), `Pages/Competitions/{Index,Show}`, `Components/Brutal/CompetitionCard`, `CompetitionFactory` + `CompetitionSeeder` (8 lomba contoh), nav "Lomba" di `AuthenticatedLayout` + CTA "Jelajahi Lomba" di Welcome/Dashboard
 - **Fase 5** — Scraper integration Laravel ↔ Python: `ScraperService` (HTTP client + retry), `CompetitionIngestor` (dedup + auto-create public room), `ScrapePortalJob` (queueable + backoff 60/300/900s), `ScrapeCommand` (artisan `--portal`/`--max-pages`/`--sync`), `NewCompetitionDetected` event + `LogNewCompetition` listener (broadcast stub), scheduler Senin 05:00 + Jumat 15:00 WIB. Python: `FirecrawlClient` (async httpx), `LLMExtractor` (OpenAI SDK + custom base_url ke OpenCode Zen), `Portals` registry 6 portal Indonesia, `scraper.py` orchestrator dengan `asyncio.gather` (concurrency=4)
 
-Test lulus: **49 passed, 168 assertions** (`php artisan test`) per `6e5a6a7`. Screenshot preview: `docs/screenshots/`.
+Test lulus: **86 passed, 244 assertions** (`php artisan test`) + **28 passed** (`scraper/pytest`) per `02e9d57`. Screenshot preview: `docs/screenshots/`.
 
 ## 7. TODO & Keputusan yang Belum Diambil
 - [ ] Conventional Commits penuh (scope, body, footer) — perlu keputusan tim
