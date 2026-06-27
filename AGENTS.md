@@ -145,8 +145,9 @@ Saat kode sudah ada, perintah standar yang akan dipakai:
 - **Fase 1** — Skema DB 3NF (5 tabel: users, competitions, chat_rooms, chat_room_members, chat_messages) + Eloquent models + `CompetitionHash` service
 - **Fase 2** — Auth + RBAC: `RoleMiddleware` (alias `role:admin,teacher`), `institution` field, profile form lokal-ID
 - **Fase 3** — Fondasi UI Neo-Brutalisme: Tailwind tokens (palette HEX, font families, box-shadow tanpa blur, borderWidth 3), Google Fonts (Syne/Space Grotesk/JetBrains Mono), `Components/Brutal/*` (Button, Card, Badge, Link, Heading), `AuthenticatedLayout`/`GuestLayout` lokal-ID
+- **Fase 4** — Modul Kompetisi read-only: `CompetitionController` (index/show), filter (level/status/pencarian), `Pages/Competitions/{Index,Show}`, `Components/Brutal/CompetitionCard`, `CompetitionFactory` + `CompetitionSeeder` (8 lomba contoh), nav "Lomba" di `AuthenticatedLayout` + CTA "Jelajahi Lomba" di Welcome/Dashboard
 
-Test lulus: **31 passed, 70 assertions** (`php artisan test`). Screenshot preview: `docs/screenshots/`.
+Test lulus: **49 passed, 168 assertions** (`php artisan test`). Screenshot preview: `docs/screenshots/`.
 
 ## 7. TODO & Keputusan yang Belum Diambil
 - [ ] Conventional Commits penuh (scope, body, footer) — perlu keputusan tim

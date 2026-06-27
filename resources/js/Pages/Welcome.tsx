@@ -88,23 +88,34 @@ export default function Welcome({ auth }: PageProps) {
                                 </p>
                                 <div className="mt-8 flex flex-wrap gap-4">
                                     <BrutalLink
-                                        href={
-                                            auth.user
-                                                ? route('dashboard')
-                                                : route('register')
-                                        }
+                                        href={route('competitions.index')}
                                         variant="pink"
                                     >
-                                        {auth.user
-                                            ? 'Buka Dasbor'
-                                            : 'Daftar Sekarang'}
+                                        Jelajahi Lomba
                                     </BrutalLink>
-                                    <BrutalLink
-                                        href={route('login')}
-                                        variant="ink"
-                                    >
-                                        Sudah Punya Akun
-                                    </BrutalLink>
+                                    {auth.user ? (
+                                        <BrutalLink
+                                            href={route('dashboard')}
+                                            variant="ink"
+                                        >
+                                            Dasbor Saya
+                                        </BrutalLink>
+                                    ) : (
+                                        <>
+                                            <BrutalLink
+                                                href={route('register')}
+                                                variant="ink"
+                                            >
+                                                Daftar Gratis
+                                            </BrutalLink>
+                                            <BrutalLink
+                                                href={route('login')}
+                                                variant="yellow"
+                                            >
+                                                Masuk
+                                            </BrutalLink>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 

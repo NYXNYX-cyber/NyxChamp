@@ -37,6 +37,12 @@ export default function Authenticated({
                                 >
                                     Beranda
                                 </NavLink>
+                                <NavLink
+                                    href={route('competitions.index')}
+                                    active={route().current('competitions.*')}
+                                >
+                                    Lomba
+                                </NavLink>
                                 {role === 'admin' && (
                                     <NavLink
                                         href={route('admin.dashboard')}
@@ -150,6 +156,12 @@ export default function Authenticated({
                             active={route().current('dashboard')}
                         >
                             Beranda
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('competitions.index')}
+                            active={route().current('competitions.*')}
+                        >
+                            Lomba
                         </ResponsiveNavLink>
                         {role === 'admin' && (
                             <ResponsiveNavLink

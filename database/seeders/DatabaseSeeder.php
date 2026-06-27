@@ -3,18 +3,19 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed data awal: 1 admin + 1 guru + 1 siswa (untuk eksplorasi
      * alur role & RBAC manual). Tambah user random via factory saat
      * perlu volume data.
+     *
+     * CATATAN: JANGAN pakai trait `WithoutModelEvents` di sini — itu
+     * menonaktifkan callback `booted()` pada `Competition` yang
+     * mengotomasi `slug` dan `hash_md5`. Lihat bug fix 2026-06-27.
      */
     public function run(): void
     {
@@ -48,5 +49,7 @@ class DatabaseSeeder extends Seeder
                 ]),
             );
         }
+
+        $this->call(CompetitionSeeder::class);
     }
 }

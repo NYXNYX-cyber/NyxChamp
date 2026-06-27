@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CompetitionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -8,6 +9,11 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
+
+// Kompetensi publik (read-only) — lihat AGENTS.md §3.3.
+// Filter via query string: ?level=nasional&status=open&q=design
+Route::get('/lomba', [CompetitionController::class, 'index'])->name('competitions.index');
+Route::get('/lomba/{competition:slug}', [CompetitionController::class, 'show'])->name('competitions.show');
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');

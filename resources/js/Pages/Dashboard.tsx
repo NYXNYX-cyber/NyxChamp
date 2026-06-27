@@ -2,7 +2,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Card from '@/Components/Brutal/Card';
 import Badge from '@/Components/Brutal/Badge';
 import Heading from '@/Components/Brutal/Heading';
-import { Head } from '@inertiajs/react';
+import BrutalLink from '@/Components/Brutal/Link';
+import { Head, Link } from '@inertiajs/react';
 import { PageProps } from '@/types';
 
 const ROLE_GREETING: Record<string, string> = {
@@ -35,24 +36,41 @@ export default function Dashboard({ auth }: PageProps) {
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <p className="font-mono text-ink/80">{greeting}</p>
 
+                    <div className="mt-6 flex flex-wrap gap-3">
+                        <BrutalLink href={route('competitions.index')} variant="pink">
+                            Jelajahi Lomba
+                        </BrutalLink>
+                        {role === 'admin' && (
+                            <BrutalLink href={route('admin.dashboard')} variant="yellow">
+                                Panel Admin
+                            </BrutalLink>
+                        )}
+                    </div>
+
                     <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         <Card tone="white" hoverable>
-                            <Badge variant="default">Placeholder</Badge>
+                            <Badge variant="emerald">Aktif</Badge>
                             <Heading as="h3" className="mt-3">
                                 Kompetisi Dibuka
                             </Heading>
                             <p className="mt-2 font-mono text-sm text-ink/70">
-                                Modul kompetisi read-only menyusul di Fase 4.
+                                Lihat semua lomba yang sedang menerima pendaftaran.
                             </p>
+                            <Link
+                                href={route('competitions.index')}
+                                className="mt-3 inline-block font-mono text-xs font-bold uppercase text-brutal-blue underline"
+                            >
+                                Buka daftar →
+                            </Link>
                         </Card>
                         <Card tone="yellow" hoverable>
-                            <Badge variant="default">Placeholder</Badge>
+                            <Badge variant="default">Segera</Badge>
                             <Heading as="h3" className="mt-3">
                                 Grup Bimbingan
                             </Heading>
                             <p className="mt-2 font-mono text-sm text-ink/80">
-                                Modul grup bimbingan (Fase 11) +
-                                Reverb (Fase 8).
+                                Modul grup bimbingan (Fase 8) +
+                                Reverb chat real-time.
                             </p>
                         </Card>
                         <Card tone="pink" hoverable>
@@ -61,7 +79,7 @@ export default function Dashboard({ auth }: PageProps) {
                                 Scraping Mingguan
                             </Heading>
                             <p className="mt-2 font-mono text-sm text-ink/80">
-                                Cron mingguan (Fase 7) dari 6 portal target.
+                                Cron mingguan (Fase 5) dari 6 portal target.
                             </p>
                         </Card>
                     </div>
@@ -88,8 +106,8 @@ export default function Dashboard({ auth }: PageProps) {
                                 UI Neo-Brutalisme (tokens + komponen)
                             </li>
                             <li>
-                                <Badge variant="default">·</Badge> Fase 4 —
-                                Modul Kompetisi (read-only)
+                                <Badge variant="emerald">✓</Badge> Fase 4 —
+                                Modul Kompetisi (read-only) + filter
                             </li>
                             <li>
                                 <Badge variant="default">·</Badge> Fase 5-12 —
