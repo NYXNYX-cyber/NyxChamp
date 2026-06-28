@@ -45,7 +45,7 @@ Baca `Rancangan Portal Lomba Laravel.md` (297 baris). Peta section:
 | Database | **MySQL ≥ 8.0** | Transaksional relasional, indeks komposit |
 | Scraper (layanan terpisah) | **Python FastAPI** | **Bukan** Artisan command, **bukan** PHP scraper |
 | AI scraping libs | **Firecrawl** & **Crawl4AI** | Bypass proteksi bot, Markdown siap-LLM |
-| LLM | **DeepSeek v4 Flash** (via OpenCode Zen, OpenAI-compatible) | Ekstraksi entitas HTML→JSON terstandar; cost rendah, response cepat |
+| LLM | **DeepSeek v4 Flash** (via OpenCode Zen path `/go/v1`, OpenAI-compatible) | Ekstraksi entitas HTML→JSON terstandar; cost rendah, response cepat. Path `/go/` khusus subscription OpenCode Go; pakai `/v1` biasa untuk model free. |
 
 ### 3.2 Arsitektur
 - **Microservices split**: Laravel = aplikasi utama; Python = scraper. Tidak boleh digabung.

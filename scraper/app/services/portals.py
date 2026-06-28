@@ -23,14 +23,14 @@ from app.services.exceptions import PortalConfigError
 def _make_detail_pattern(hostname: str) -> re.Pattern[str]:
     """Compile regex untuk URL detail lomba di hostname tertentu.
 
-    Match path: /lomba/... atau /event/... atau /kompetisi/... atau
-    /competition/... atau /info-lomba/...
+    Match path: /lomba/..., /event/..., /kompetisi/..., /kompetisi-lomba/...
+    atau /competition/..., /info-lomba/...
     Exclude: /category/..., /tag/..., /author/..., halaman root.
     """
     # Escape dot di hostname (kalau subdomain aneh).
     host = re.escape(hostname.lower())
     return re.compile(
-        rf"^https?://{host}/(lomba|event|events|kompetisi|competition|competitions|info-lomba)/[^/?#]+/?$",
+        rf"^https?://{host}/(lomba|event|events|kompetisi|kompetisi-lomba|competition|competitions|info-lomba)/[^/?#]+/?$",
         re.IGNORECASE,
     )
 

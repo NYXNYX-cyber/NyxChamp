@@ -46,9 +46,10 @@ FIRECRAWL_API_KEY: str | None = os.getenv("FIRECRAWL_API_KEY") or None
 
 # === LLM (DeepSeek v4 Flash via OpenCode Zen) ===
 
-# OpenAI-compatible base URL. Default ke OpenCode Zen.
+# OpenAI-compatible base URL. Default ke OpenCode Zen (path /go/ khusus
+# subscription OpenCode Go; pakai /v1 biasa untuk model free).
 LLM_BASE_URL: str = os.getenv(
-    "SCRAPER_LLM_BASE_URL", "https://opencode.ai/zen/v1"
+    "SCRAPER_LLM_BASE_URL", "https://opencode.ai/zen/go/v1"
 )
 
 # Model LLM. Default DeepSeek v4 Flash. Locked in AGENTS.md §3.1.

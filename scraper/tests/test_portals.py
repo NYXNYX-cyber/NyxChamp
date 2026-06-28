@@ -34,7 +34,8 @@ def test_is_detail_link_valid():
     p = get_portal("lombahub_com")
     assert is_detail_link("https://lombahub.com/lomba/foo", p)
     assert is_detail_link("https://lombahub.com/event/bar", p)
-    assert is_detail_link("https://lombahub.com/info-lomba/baz", p)
+    assert is_detail_link("https://lombahub.com/kompetisi-lomba/baz", p)
+    assert is_detail_link("https://lombahub.com/info-lomba/qux", p)
 
 
 def test_is_detail_link_invalid():
