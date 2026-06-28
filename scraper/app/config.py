@@ -43,6 +43,21 @@ FIRECRAWL_API_URL: str | None = os.getenv("FIRECRAWL_API_URL")
 # Self-hosted Firecrawl biasanya tanpa auth; kalau pakai token, set di sini.
 FIRECRAWL_API_KEY: str | None = os.getenv("FIRECRAWL_API_KEY") or None
 
+# === Firecrawl auto-start (SSH ke host) ===
+# Host Firecrawl punya cron auto-stop 3 menit idle (hemat RAM). Supaya
+# scraper selalu bisa pakai, setiap scrape_portal() panggil ensure_running()
+# yang: cek health → kalau down, SSH start + touch /tmp/firecrawl-active.
+#
+# Wajib set salah satu: FIRECRAWL_SSH_PASSWORD atau FIRECRAWL_SSH_KEY_PATH.
+FIRECRAWL_SSH_HOST: str = os.getenv("FIRECRAWL_SSH_HOST", "10.10.1.28")
+FIRECRAWL_SSH_PORT: int = int(os.getenv("FIRECRAWL_SSH_PORT", "22"))
+FIRECRAWL_SSH_USER: str = os.getenv("FIRECRAWL_SSH_USER", "root")
+FIRECRAWL_SSH_PASSWORD: str | None = os.getenv("FIRECRAWL_SSH_PASSWORD") or None
+FIRECRAWL_SSH_KEY_PATH: str | None = os.getenv("FIRECRAWL_SSH_KEY_PATH") or None
+FIRECRAWL_WARMUP_TIMEOUT_SECONDS: int = int(
+    os.getenv("FIRECRAWL_WARMUP_TIMEOUT_SECONDS", "60")
+)
+
 
 # === LLM (DeepSeek v4 Flash via OpenCode Zen) ===
 

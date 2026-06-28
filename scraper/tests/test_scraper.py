@@ -44,7 +44,16 @@ def _make_item(title: str, days_from_now: int, level: str = "nasional") -> dict:
 @respx.mock
 async def test_scrape_portal_end_to_end_happy_path(monkeypatch):
     """Full E2E: 1 portal, 3 detail URL, LLM return 3 items valid."""
+    from app.services.firecrawl_keeper import ensure_running
     from app.services.llm_extractor import LLMExtractor
+
+    # 0. Firecrawl keeper: skip SSH (assume up)
+    async def fake_ensure_running(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(
+        "app.services.scraper.firecrawl_ensure_running", fake_ensure_running
+    )
 
     # 1. Firecrawl: listing markdown berisi 3 link detail
     listing_md = """
@@ -97,6 +106,14 @@ async def test_scrape_portal_dedup_across_calls(monkeypatch):
     from app.services.llm_extractor import LLMExtractor
     from app.schemas import Competition
 
+    # 0. Firecrawl keeper: skip SSH
+    async def fake_ensure_running(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(
+        "app.services.scraper.firecrawl_ensure_running", fake_ensure_running
+    )
+
     listing_md = "[Lomba A](https://lombahub.com/lomba/a-2026)"
     respx.post("http://firecrawl.test:3002/v1/scrape").mock(
         side_effect=[
@@ -120,8 +137,15 @@ async def test_scrape_portal_dedup_across_calls(monkeypatch):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_scrape_portal_blocked_returns_error_only():
+async def test_scrape_portal_blocked_returns_error_only(monkeypatch):
     """Kalau Firecrawl return 403, response berisi error tanpa items."""
+    # 0. Firecrawl keeper: assume up
+    async def fake_ensure_running(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(
+        "app.services.scraper.firecrawl_ensure_running", fake_ensure_running
+    )
     respx.post("http://firecrawl.test:3002/v1/scrape").mock(
         return_value=httpx.Response(403, text="Forbidden")
     )

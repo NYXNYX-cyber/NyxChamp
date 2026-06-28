@@ -16,7 +16,12 @@ import asyncio
 import logging
 from collections.abc import Awaitable
 
-from app.config import MAX_CONCURRENCY, MAX_PAGES_PER_PORTAL, require_runtime_keys
+from app.config import (
+    FIRECRAWL_API_URL,
+    MAX_CONCURRENCY,
+    MAX_PAGES_PER_PORTAL,
+    require_runtime_keys,
+)
 from app.schemas import Competition, ScrapeRequest, ScrapeResponse
 from app.services.exceptions import (
     LLMError,
@@ -25,6 +30,7 @@ from app.services.exceptions import (
     ScraperError,
 )
 from app.services.firecrawl_client import FirecrawlClient
+from app.services.firecrawl_keeper import ensure_running as firecrawl_ensure_running
 from app.services.llm_extractor import LLMExtractor
 from app.services.portals import (
     extract_detail_links,
@@ -72,6 +78,25 @@ async def scrape_portal(req: ScrapeRequest) -> ScrapeResponse:
 
     errors: list[str] = []
     items: list[Competition] = []
+
+    # Step 0: pastikan Firecrawl stack hidup (auto-start via SSH kalau down).
+    # Host punya cron auto-stop 3 menit idle — hemat RAM saat idle.
+    try:
+        if not await firecrawl_ensure_running(FIRECRAWL_API_URL):  # type: ignore[arg-type]
+            errors.append("Firecrawl stack gagal di-start (warmup timeout)")
+            return ScrapeResponse(
+                job_id=req.job_id, portal=req.portal, items=[], errors=errors
+            )
+    except ValueError as exc:
+        errors.append(f"Firecrawl keeper config invalid: {exc}")
+        return ScrapeResponse(
+            job_id=req.job_id, portal=req.portal, items=[], errors=errors
+        )
+    except Exception as exc:
+        errors.append(f"Firecrawl keeper error: {exc}")
+        return ScrapeResponse(
+            job_id=req.job_id, portal=req.portal, items=[], errors=errors
+        )
 
     async with FirecrawlClient() as fc:
         # Step 1: scrape halaman listing
