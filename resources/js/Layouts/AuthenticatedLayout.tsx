@@ -43,6 +43,12 @@ export default function Authenticated({
                                 >
                                     Lomba
                                 </NavLink>
+                                <NavLink
+                                    href={route('chat.index')}
+                                    active={route().current('chat.*')}
+                                >
+                                    Chat
+                                </NavLink>
                                 {role === 'admin' && (
                                     <NavLink
                                         href={route('admin.dashboard')}
@@ -162,6 +168,12 @@ export default function Authenticated({
                             active={route().current('competitions.*')}
                         >
                             Lomba
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            href={route('chat.index')}
+                            active={route().current('chat.*')}
+                        >
+                            Chat
                         </ResponsiveNavLink>
                         {role === 'admin' && (
                             <ResponsiveNavLink

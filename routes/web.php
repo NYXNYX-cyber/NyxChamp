@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CompetitionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
@@ -24,6 +25,19 @@ Route::middleware(['auth', 'verified', 'role:admin'])->group(function () {
     Route::get('/admin', function () {
         return Inertia::render('Admin/Dashboard');
     })->name('admin.dashboard');
+});
+
+// Chat real-time (lihat AGENTS.md §3.5 + Rancangan §4).
+// Channel Reverb: chat.room.{id} (private) + chat.presence.{id} (presence).
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/chat', [ChatController::class, 'index'])->name('chat.index');
+    Route::get('/chat/{room}', [ChatController::class, 'show'])->name('chat.show');
+    Route::post('/chat/{room}/messages', [ChatController::class, 'storeMessage'])->name('chat.messages.store');
+    Route::post('/chat/{room}/members', [ChatController::class, 'inviteMember'])->name('chat.members.invite');
+
+    // Guru/admin buat grup bimbingan untuk kompetisi.
+    Route::post('/lomba/{competition:slug}/grup-bimbingan', [ChatController::class, 'createGroupBimbingan'])
+        ->name('competitions.groups.create');
 });
 
 Route::middleware('auth')->group(function () {

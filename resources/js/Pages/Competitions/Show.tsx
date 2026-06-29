@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import GuestLayout from '@/Layouts/GuestLayout';
 import Badge from '@/Components/Brutal/Badge';
@@ -177,11 +177,12 @@ export default function Show({ auth, competition }: Props) {
                         {canCreateRoom ? (
                             <button
                                 type="button"
-                                disabled
-                                className="brutal-btn opacity-60"
-                                title="Aktif di Fase 8 (Chat Real-Time)"
+                                onClick={() =>
+                                    router.post(route('competitions.groups.create', competition.slug))
+                                }
+                                className="brutal-btn"
                             >
-                                Buat Grup Bimbingan (segera)
+                                Buat Grup Bimbingan
                             </button>
                         ) : user ? (
                             <p className="font-mono text-xs text-ink/60">
