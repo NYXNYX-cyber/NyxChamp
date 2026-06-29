@@ -128,17 +128,43 @@ Mengganti salah satu token di bawah = **melanggar spec**. Diskusikan dulu.
 - **Komentar kode**: Bahasa Indonesia, singkat, hanya untuk menjelaskan **mengapa** (bukan apa).
 - **Commit message**: Bahasa Indonesia, format `tipo: subjek` (mis. `fitur: tambah endpoint scrape`, `perbaiki: hash MD5 duplikat`). Conventional Commits penuh (scope, body) **belum diputuskan** — lihat §7.
 
-## 6. Perintah Dev (untuk nanti)
-Saat kode sudah ada, perintah standar yang akan dipakai:
-- `php artisan serve` — dev server Laravel
-- `php artisan queue:work` — worker antrean Redis (untuk scrapping job)
-- `php artisan reverb:start` — WebSocket server
-- `php artisan schedule:work` — scheduler lokal (untuk trigger scraping mingguan)
+## 6. Perintah Dev (sudah terbukti jalan)
+
+### Laravel
+- `php artisan serve` — dev server Laravel (HTTP di :8000)
+- `php artisan queue:work --queue=scraping` — worker antrean Redis (untuk ScrapePortalJob). Production pakai systemd unit `nyxchamp-queue.service`.
+- `php artisan reverb:start` — WebSocket server (Fase 7). Production pakai systemd unit `nyxchamp-reverb.service`.
+- `php artisan schedule:work` — scheduler lokal (trigger Senin 05:00 + Jumat 15:00 WIB). Production pakai cron `* * * * * php artisan schedule:run`.
+- `php artisan scrape --portal=lombahub_com --sync` — one-shot scrape, sinkron. Tanpa flag `--sync` masuk antrian 'scraping'.
+- `php artisan scrape --health` — cek apakah Python scraper service hidup.
+- `php artisan test` / `php artisan test --filter=...` — PHPUnit (86 test, 244 assertion)
+- `php artisan migrate:fresh --seed` — reset DB + seed 8 lomba contoh
+- `php artisan queue:failed` — lihat job yang sudah gagal permanen
+- `php artisan queue:retry <uuid>` — retry job yang gagal
+
+### Frontend
 - `npm run dev` — Vite/Inertia dev server
-- `php artisan test` / `php artisan test --filter=...` — PHPUnit
 - `npm run build` — build frontend untuk produksi
 
-> **Jangan tulis README/runbook panjang** tentang cara setup di masa depan. Saat kode ada, update §6 dengan perintah aktual yang terbukti jalan.
+### Docker stack (MySQL + Redis, di Scraping server)
+- `cd /opt/nyxchamp-stack && docker compose up -d` — start stack
+- `docker compose ps` — status (harus healthy)
+- `docker compose logs -f mysql` — tail log
+- `docker compose down` — stop
+- `docker compose down -v` — stop + hapus data (HATI-HATI)
+
+### Python scraper
+- `cd scraper && .venv/bin/uvicorn app.main:app --port 8001` — FastAPI service
+- `cd scraper && .venv/bin/python scripts/smoke_e2e.py` — one-shot E2E test (no daemon, ~10-30s)
+- `cd scraper && .venv/bin/pytest` — test (40 pass)
+
+### Firecrawl (di Scraping server)
+- `bash /usr/local/bin/firecrawl-start.sh` — manual start (auto-start via `firecrawl_keeper.py` kalau ada env SSH)
+- `bash /usr/local/bin/firecrawl-stop.sh` — manual stop
+- `touch /tmp/firecrawl-active` — refresh auto-stop window (3 menit idle)
+- `tail /var/log/firecrawl-auto-stop.log` — log auto-stop
+
+> Setup lengkap lihat `deploy/SETUP.md`.
 
 ## 6b. Fase yang Sudah Selesai
 - **Fase 0** — Fondasi: Laravel 13.17 + Breeze (Inertia + React + TS) + Reverb + Python FastAPI scraper skeleton di `scraper/`
@@ -147,14 +173,15 @@ Saat kode sudah ada, perintah standar yang akan dipakai:
 - **Fase 3** — Fondasi UI Neo-Brutalisme: Tailwind tokens (palette HEX, font families, box-shadow tanpa blur, borderWidth 3), Google Fonts (Syne/Space Grotesk/JetBrains Mono), `Components/Brutal/*` (Button, Card, Badge, Link, Heading), `AuthenticatedLayout`/`GuestLayout` lokal-ID
 - **Fase 4** — Modul Kompetisi read-only: `CompetitionController` (index/show), filter (level/status/pencarian), `Pages/Competitions/{Index,Show}`, `Components/Brutal/CompetitionCard`, `CompetitionFactory` + `CompetitionSeeder` (8 lomba contoh), nav "Lomba" di `AuthenticatedLayout` + CTA "Jelajahi Lomba" di Welcome/Dashboard
 - **Fase 5** — Scraper integration Laravel ↔ Python: `ScraperService` (HTTP client + retry), `CompetitionIngestor` (dedup + auto-create public room), `ScrapePortalJob` (queueable + backoff 60/300/900s), `ScrapeCommand` (artisan `--portal`/`--max-pages`/`--sync`), `NewCompetitionDetected` event + `LogNewCompetition` listener (broadcast stub), scheduler Senin 05:00 + Jumat 15:00 WIB. Python: `FirecrawlClient` (async httpx), `LLMExtractor` (OpenAI SDK + custom base_url ke OpenCode Zen `/go/v1`), `Portals` registry 6 portal Indonesia, `scraper.py` orchestrator dengan `asyncio.gather` (concurrency=4), `firecrawl_keeper.py` (auto-start stack via SSH kalau host-nya down — host pakai cron auto-stop 3 menit idle untuk hemat RAM).
+- **Fase 6** — Production-like stack: MySQL 8 + Redis 7 di Scraping server (`docker/nyxchamp-stack/docker-compose.yml`, port 3306 + 6380). Laravel `.env`: `DB_CONNECTION=mysql`, `QUEUE_CONNECTION=redis`, `CACHE_STORE=redis`, `SESSION_DRIVER=redis`. `php artisan migrate:fresh` jalan sukses (8 migrasi: users, cache, jobs, role+institution, competitions, chat_rooms, chat_room_members, chat_messages). Queue Redis verified: dispatch + worker (backoff 60s dihormati) + `failed()` callback log ke `storage/logs/scraper.log`. Systemd unit: `deploy/systemd/nyxchamp-queue.service` (Production-ready) + `nyxchamp-reverb.service` (Fase 7 placeholder). Panduan deploy lengkap di `deploy/SETUP.md`.
 
-Test lulus: **86 passed, 244 assertions** (`php artisan test`) + **40 passed** (`scraper/pytest`) per `9fb47da`. Screenshot preview: `docs/screenshots/`.
+Test lulus: **86 passed, 244 assertions** (`php artisan test`) + **40 passed** (`scraper/pytest`) per `75e3729`. Screenshot preview: `docs/screenshots/`.
 
 ## 7. TODO & Keputusan yang Belum Diambil
 - [ ] Conventional Commits penuh (scope, body, footer) — perlu keputusan tim
 - [ ] Strategi branch (`feat/*` `fix/*` `chore/*`) & PR template
 - [ ] Strategi migrasi DB awal (pertama kali `php artisan migrate` di env dev)
-- [ ] Retry policy scraper saat gagal (backoff? max retry? dead letter queue?)
+- [x] Retry policy scraper saat gagal — **done di Fase 5/6**: `ScrapePortalJob` punya `tries=3` + `backoff()=[60, 300, 900]`, 4xx → `$this->fail()` permanent, 5xx/connection → retry. Permanent failure masuk `failed_jobs` table (Redis) + log ke `scraper` channel via `failed()` callback. Inspect dengan `php artisan queue:failed`, retry dengan `php artisan queue:retry <uuid>`.
 - [ ] Rate-limit per portal target (scrape terlalu agresif = IP kena blok)
 - [ ] Strategi auth channel Reverb (sesi Laravel vs JWT) — rancangan sebut dua-duanya
 - [ ] Inisialisasi `composer.json` & `package.json` (saat coding mulai)

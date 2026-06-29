@@ -1,0 +1,59 @@
+# Systemd unit untuk NyxChamp queue worker.
+#
+# Deploy ke /etc/systemd/system/nyxchamp-queue.service di host yang
+# menjalankan Laravel (bisa sama dengan Scraping server, atau host terpisah
+# khusus Laravel). Edit User, WorkingDirectory, dan EnvironmentFile
+# sesuai setup lokal.
+#
+# Setelah deploy:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable nyxchamp-queue
+#   sudo systemctl start nyxchamp-queue
+#   sudo systemctl status nyxchamp-queue
+#   sudo journalctl -u nyxchamp-queue -f
+
+[Unit]
+Description=NyxChamp Queue Worker (scraping jobs)
+After=network.target
+# Kalau MySQL/Redis ada di Docker compose, tunggu service up:
+# After=docker.service
+# Requires=docker.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/nyxchamp
+EnvironmentFile=/var/www/nyxchamp/.env
+
+# Jangan panggil php artisan serve — queue worker jalan lama, bukan dev server.
+ExecStart=/usr/bin/php artisan queue:work --queue=scraping --tries=3 --timeout=600 --sleep=3 --backoff=60,300,900
+
+# Restart otomatis kalau crash (max 5 attempt dalam 60 detik supaya tidak
+# loop restart saat MySQL/Redis down → spike CPU).
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Resource limit supaya 1 worker tidak makan semua RAM kalau job macet.
+MemoryMax=512M
+TasksMax=50
+
+# Logging ke journald (lihat dengan `journalctl -u nyxchamp-queue`).
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nyxchamp-queue
+
+# Hardening: jalankan sebagai non-root, limit file system write.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/nyxchamp/storage /var/www/nyxchamp/bootstrap/cache
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

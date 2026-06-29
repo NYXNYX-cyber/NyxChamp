@@ -1,0 +1,85 @@
+# Docker Compose stack NyxChamp — MySQL 8 + Redis 7.
+#
+# Dideploy di Scraping server (10.10.1.28) via /opt/nyxchamp-stack.
+# Dipakai oleh Laravel (di mesin lain) untuk:
+# - DB_CONNECTION=mysql → port 3306
+# - QUEUE_CONNECTION=redis + CACHE_STORE=redis → port 6379
+#
+# Dipisah dari stack Firecrawl (/opt/firecrawl-local) karena:
+# 1. Firecrawl auto-stop 3 menit idle (lihat firecrawl_keeper.py) —
+#    Redis Laravel harus tetap hidup saat Firecrawl down
+#    (terutama untuk Reverb pub/sub Fase 7)
+# 2. Lifecycle independence: upgrade/rollback salah satu stack
+#    tanpa ganggu yang lain
+#
+# Penggunaan (di Scraping server):
+#   cd /opt/nyxchamp-stack && docker compose up -d
+#   docker compose ps
+#   docker compose logs -f mysql
+#
+# Backup:
+#   docker exec nyxchamp-mysql mysqldump --all-databases -uroot -p"$MYSQL_ROOT_PASSWORD" > backup.sql
+#
+# Reset (HATI-HATI, hapus semua data):
+#   docker compose down -v && docker compose up -d
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: nyxchamp-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+07:00
+      - --max-connections=200
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-in-env-file}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nyxchamp}
+      MYSQL_USER: ${MYSQL_USER:-nyxchamp}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me-in-env-file}
+      TZ: Asia/Jakarta
+    ports:
+      # Bind ke 0.0.0.0 supaya Laravel di host lain bisa connect via LAN.
+      # Untuk prod, restrict via firewall atau gunakan unix socket.
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-change-me-in-env-file}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: nyxchamp-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - "256mb"
+      - --maxmemory-policy
+      - "allkeys-lru"
+    ports:
+      # 6379 bentrok dengan Redis internal Firecrawl (10.10.1.28:6379).
+      # Pakai 6380 supaya Laravel punya Redis sendiri, tidak kena auto-stop
+      # Firecrawl.
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mysql_data:
+    name: nyxchamp_mysql_data
+  redis_data:
+    name: nyxchamp_redis_data
