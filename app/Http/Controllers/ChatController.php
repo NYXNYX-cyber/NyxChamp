@@ -92,13 +92,27 @@ class ChatController extends Controller
                     'role' => $m->sender->role,
                 ],
                 'text' => $m->message_text,
+                'display_text' => $m->displayText(),
+                'is_edited' => $m->isEdited(),
+                'is_deleted' => $m->isDeleted(),
                 'created_at' => $m->created_at?->toIso8601String(),
+                'edited_at' => $m->edited_at?->toIso8601String(),
             ]);
 
         $members = $room->members()
             ->select('users.id', 'users.name', 'users.role')
             ->orderBy('users.name')
             ->get();
+
+        // Read state: siapa yang sudah baca sampai message mana
+        $reads = \App\Models\ChatRoomRead::where('chat_room_id', $room->id)
+            ->get(['user_id', 'last_read_message_id', 'read_at'])
+            ->mapWithKeys(fn ($r) => [
+                $r->user_id => [
+                    'last_read_message_id' => $r->last_read_message_id,
+                    'read_at' => $r->read_at?->toIso8601String(),
+                ],
+            ]);
 
         return Inertia::render('Chat/Show', [
             'room' => [
@@ -113,10 +127,118 @@ class ChatController extends Controller
                 'created_by' => $room->created_by,
                 'is_member' => $this->isMember($request->user(), $room),
                 'is_creator' => (int) $room->created_by === (int) $request->user()->id,
+                'current_user_id' => $request->user()->id,
             ],
             'messages' => $messages,
             'members' => $members,
+            'reads' => $reads,
         ]);
+    }
+
+    /**
+     * Edit pesan milik sendiri. Hanya dalam window 15 menit (lihat
+     * ChatMessage::EDIT_WINDOW_MINUTES). Broadcast event MessageEdited.
+     */
+    public function updateMessage(Request $request, ChatRoom $room, ChatMessage $message): RedirectResponse|JsonResponse
+    {
+        $this->authorizeAccess($request->user(), $room);
+
+        abort_unless((int) $message->chat_room_id === (int) $room->id, 404);
+        abort_unless((int) $message->sender_id === (int) $request->user()->id, 403, 'Anda hanya bisa mengedit pesan sendiri.');
+        abort_if($message->isDeleted(), 403, 'Pesan yang dihapus tidak bisa diedit.');
+        abort_unless($message->isEditable(), 403, 'Batas waktu edit (' . ChatMessage::EDIT_WINDOW_MINUTES . ' menit) sudah lewat.');
+
+        $data = $request->validate([
+            'message_text' => ['required', 'string', 'min:1', 'max:5000'],
+        ]);
+
+        $message->update([
+            'message_text' => trim($data['message_text']),
+            'edited_at' => now(),
+        ]);
+
+        broadcast(new \App\Events\MessageEdited($message))->toOthers();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => [
+                    'id' => $message->id,
+                    'text' => $message->message_text,
+                    'edited_at' => $message->edited_at?->toIso8601String(),
+                ],
+            ]);
+        }
+
+        return back(303);
+    }
+
+    /**
+     * Soft-delete pesan. Sender boleh hapus miliknya sendiri, admin
+     * boleh hapus pesan siapa saja (moderasi spam). Broadcast event
+     * MessageDeleted dengan payload minimal (id saja).
+     */
+    public function deleteMessage(Request $request, ChatRoom $room, ChatMessage $message): RedirectResponse|JsonResponse
+    {
+        $this->authorizeAccess($request->user(), $room);
+
+        abort_unless((int) $message->chat_room_id === (int) $room->id, 404);
+
+        $user = $request->user();
+        $isOwner = (int) $message->sender_id === (int) $user->id;
+        abort_unless($isOwner || $user->isAdmin(), 403, 'Hanya pengirim atau admin yang bisa menghapus pesan.');
+
+        abort_if($message->isDeleted(), 403, 'Pesan sudah dihapus.');
+
+        $message->update([
+            'deleted_at' => now(),
+            'deleted_by' => $user->id,
+        ]);
+
+        broadcast(new \App\Events\MessageDeleted($message))->toOthers();
+
+        if ($request->wantsJson()) {
+            return response()->json(['deleted' => true, 'id' => $message->id]);
+        }
+
+        return back(303);
+    }
+
+    /**
+     * Tandai room "sudah dibaca" sampai message X. Dipanggil client
+     * saat user pertama buka Show + saat message baru masuk ke viewport.
+     * Dispatch event MessagesRead ke presence channel.
+     */
+    public function markRead(Request $request, ChatRoom $room): RedirectResponse|JsonResponse
+    {
+        $this->authorizeAccess($request->user(), $room);
+
+        $data = $request->validate([
+            'last_message_id' => ['required', 'integer', 'exists:chat_messages,id'],
+        ]);
+
+        // Validasi: message harus milik room ini
+        $message = \App\Models\ChatMessage::where('id', $data['last_message_id'])
+            ->where('chat_room_id', $room->id)
+            ->firstOrFail();
+
+        $read = \App\Models\ChatRoomRead::updateOrCreate(
+            [
+                'chat_room_id' => $room->id,
+                'user_id' => $request->user()->id,
+            ],
+            [
+                'last_read_message_id' => $message->id,
+                'read_at' => now(),
+            ],
+        );
+
+        broadcast(new \App\Events\MessagesRead($room, $request->user(), $message->id))->toOthers();
+
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true, 'last_read_message_id' => $read->last_read_message_id]);
+        }
+
+        return back(303);
     }
 
     /**
