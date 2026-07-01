@@ -28,6 +28,8 @@ type Room = {
     is_member: boolean;
     is_creator: boolean;
     current_user_id: number;
+    current_user_role: 'student' | 'teacher' | 'admin';
+    current_user_is_admin: boolean;
 };
 
 type PresenceUser = { id: number; name: string; role: string };
@@ -71,7 +73,7 @@ export default function Show({ room, messages: initialMessages, members, reads: 
     const form = useForm({ message_text: '' });
     const editForm = useForm({ message_text: '' });
     const inviteForm = useForm({ email: '' });
-    const isAdmin = false; // akan ditambah di Fase 11, sementara kita pakai role dari server
+    const isAdmin = room.current_user_is_admin;
 
     // Live message broadcast dari channel private chat.room.{id}
     useEcho<Message>(`chat.room.${room.id}`, '.message.sent', (payload) => {
@@ -115,7 +117,7 @@ export default function Show({ room, messages: initialMessages, members, reads: 
         setMessages((prev) =>
             prev.map((m) =>
                 m.id === payload.id
-                    ? { ...m, is_deleted: true, display_text: '[Pesan dihapus]', text: '' }
+                    ? { ...m, is_deleted: true, display_text: '[Pesan dihapus]' }
                     : m,
             ),
         );
@@ -319,6 +321,7 @@ export default function Show({ room, messages: initialMessages, members, reads: 
                                 const canEdit = isMine && !m.is_deleted
                                     && m.created_at
                                     && new Date(m.created_at).getTime() > Date.now() - 15 * 60 * 1000;
+                                const canDelete = (isMine || isAdmin) && !m.is_deleted;
 
                                 return (
                                     <div key={m.id} className="flex flex-col">
@@ -377,30 +380,29 @@ export default function Show({ room, messages: initialMessages, members, reads: 
                                             </div>
                                         )}
 
-                                        {!isEditing && (isMine || canEdit) && !m.is_deleted && (
+                                        {!isEditing && (canEdit || canDelete) && !m.is_deleted && (
                                             <div className="mt-1 flex items-center gap-2 font-mono text-xs">
-                                                {isMine && (
+                                                {canEdit && (
                                                     <button
                                                         type="button"
                                                         onClick={() => startEdit(m)}
-                                                        disabled={!canEdit}
-                                                        title={canEdit ? 'Edit pesan' : 'Batas edit 15 menit sudah lewat'}
-                                                        className={
-                                                            'underline ' +
-                                                            (canEdit ? 'text-brutal-blue' : 'text-ink/30 cursor-not-allowed')
-                                                        }
+                                                        title="Edit pesan"
+                                                        className="text-brutal-blue underline"
                                                     >
                                                         Edit
                                                     </button>
                                                 )}
-                                                {isMine && <span className="text-ink/30">·</span>}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => deleteMessage(m.id)}
-                                                    className="text-brutal-pink underline"
-                                                >
-                                                    Hapus
-                                                </button>
+                                                {canEdit && canDelete && <span className="text-ink/30">·</span>}
+                                                {canDelete && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => deleteMessage(m.id)}
+                                                        title={isMine ? 'Hapus pesan' : 'Hapus pesan (moderasi admin)'}
+                                                        className="text-brutal-pink underline"
+                                                    >
+                                                        Hapus
+                                                    </button>
+                                                )}
                                                 {readers.length > 0 && (
                                                     <span className="ml-auto text-ink/50">
                                                         ✓ Dibaca {readers.length > 1 ? `oleh ${readers.length} orang` : ''}

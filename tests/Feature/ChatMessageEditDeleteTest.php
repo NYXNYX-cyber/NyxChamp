@@ -302,4 +302,36 @@ class ChatMessageEditDeleteTest extends TestCase
         $this->assertSame($user->id, $payload['user_id']);
         $this->assertSame($msg->id, $payload['last_read_message_id']);
     }
+
+    // ====== INERTIA PAYLOAD ======
+
+    public function test_show_includes_current_user_is_admin_for_admin(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $room = $this->makeMemberRoom($admin);
+
+        $this->actingAs($admin)
+            ->get(route('chat.show', $room))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Chat/Show')
+                ->where('room.current_user_is_admin', true)
+                ->where('room.current_user_role', 'admin')
+            );
+    }
+
+    public function test_show_includes_current_user_is_admin_false_for_student(): void
+    {
+        $student = User::factory()->student()->create();
+        $room = $this->makeMemberRoom($student);
+
+        $this->actingAs($student)
+            ->get(route('chat.show', $room))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Chat/Show')
+                ->where('room.current_user_is_admin', false)
+                ->where('room.current_user_role', 'student')
+            );
+    }
 }

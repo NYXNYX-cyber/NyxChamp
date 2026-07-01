@@ -128,6 +128,8 @@ class ChatController extends Controller
                 'is_member' => $this->isMember($request->user(), $room),
                 'is_creator' => (int) $room->created_by === (int) $request->user()->id,
                 'current_user_id' => $request->user()->id,
+                'current_user_role' => $request->user()->role,
+                'current_user_is_admin' => $request->user()->isAdmin(),
             ],
             'messages' => $messages,
             'members' => $members,
