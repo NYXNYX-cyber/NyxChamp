@@ -7,6 +7,17 @@ import Button from '@/Components/Brutal/Button';
 import Heading from '@/Components/Brutal/Heading';
 
 type Sender = { id: number; name: string; role: 'student' | 'teacher' | 'admin' };
+type Attachment = {
+    id: number;
+    original_name: string;
+    mime_type: string;
+    size_bytes: number;
+    human_size: string;
+    is_image: boolean;
+    is_pdf: boolean;
+    is_document: boolean;
+    download_url: string;
+};
 type Message = {
     id: number;
     sender: Sender;
@@ -16,6 +27,7 @@ type Message = {
     is_deleted: boolean;
     created_at: string | null;
     edited_at: string | null;
+    attachments: Attachment[];
 };
 type Read = { last_read_message_id: number | null; read_at: string | null };
 
@@ -61,16 +73,116 @@ function formatTime(iso: string | null): string {
     });
 }
 
+function AttachmentThumb({ file, onRemove }: { file: File; onRemove?: () => void }) {
+    const [preview, setPreview] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (file.type.startsWith('image/')) {
+            const url = URL.createObjectURL(file);
+            setPreview(url);
+            return () => URL.revokeObjectURL(url);
+        }
+        return undefined;
+    }, [file]);
+
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf';
+
+    return (
+        <div className="relative flex items-center gap-2 border-2 border-ink bg-white p-2 shadow-brutal-sm">
+            {isImage && preview ? (
+                <img
+                    src={preview}
+                    alt={file.name}
+                    className="h-12 w-12 border-2 border-ink object-cover"
+                />
+            ) : isPdf ? (
+                <div className="flex h-12 w-12 items-center justify-center border-2 border-ink bg-brutal-pink/20 font-mono text-lg">
+                    PDF
+                </div>
+            ) : (
+                <div className="flex h-12 w-12 items-center justify-center border-2 border-ink bg-brutal-yellow/40 font-mono text-lg">
+                    DOC
+                </div>
+            )}
+            <div className="min-w-0 flex-1">
+                <p className="truncate font-mono text-xs">{file.name}</p>
+                <p className="font-mono text-xs text-ink/50">
+                    {(file.size / 1024).toFixed(1)} KB
+                </p>
+            </div>
+            {onRemove && (
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    className="flex h-6 w-6 items-center justify-center border-2 border-ink bg-brutal-pink font-header text-xs font-bold shadow-brutal-sm hover:translate-x-[-1px] hover:translate-y-[-1px]"
+                    title="Hapus dari daftar"
+                >
+                    ×
+                </button>
+            )}
+        </div>
+    );
+}
+
+function AttachmentView({ att }: { att: Attachment }) {
+    if (att.is_image) {
+        return (
+            <a
+                href={att.download_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 block max-w-md border-2 border-ink bg-white shadow-brutal-sm"
+                title="Klik untuk membuka ukuran penuh"
+            >
+                <img
+                    src={att.download_url}
+                    alt={att.original_name}
+                    className="block max-h-64 w-full object-contain"
+                    loading="lazy"
+                />
+            </a>
+        );
+    }
+    return (
+        <a
+            href={att.download_url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 flex items-center gap-2 border-2 border-ink bg-white p-2 font-mono text-xs shadow-brutal-sm hover:translate-x-[-1px] hover:translate-y-[-1px]"
+        >
+            <div
+                className={
+                    'flex h-10 w-10 shrink-0 items-center justify-center border-2 border-ink font-header text-xs font-bold ' +
+                    (att.is_pdf ? 'bg-brutal-pink/20' : 'bg-brutal-yellow/40')
+                }
+            >
+                {att.is_pdf ? 'PDF' : 'DOC'}
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="truncate font-mono">{att.original_name}</p>
+                <p className="text-ink/50">{att.human_size}</p>
+            </div>
+            <span className="text-brutal-blue underline">Unduh</span>
+        </a>
+    );
+}
+
 export default function Show({ room, messages: initialMessages, members, reads: initialReads }: Props) {
     const [messages, setMessages] = useState<Message[]>(initialMessages);
     const [reads, setReads] = useState<Record<number, Read>>(initialReads ?? {});
     const [presence, setPresence] = useState<Record<string, PresenceUser>>({});
     const [typingUsers, setTypingUsers] = useState<Set<number>>(new Set());
     const [editingId, setEditingId] = useState<number | null>(null);
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const bottomRef = useRef<HTMLDivElement | null>(null);
     const typingTimeoutRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
-    const form = useForm({ message_text: '' });
+    const form = useForm<{ message_text: string; attachments: File[] }>({
+        message_text: '',
+        attachments: [],
+    });
     const editForm = useForm({ message_text: '' });
     const inviteForm = useForm({ email: '' });
     const isAdmin = room.current_user_is_admin;
@@ -90,6 +202,7 @@ export default function Show({ room, messages: initialMessages, members, reads: 
                     is_deleted: false,
                     created_at: payload.created_at,
                     edited_at: null,
+                    attachments: payload.attachments ?? [],
                 },
             ];
         });
@@ -196,11 +309,44 @@ export default function Show({ room, messages: initialMessages, members, reads: 
 
     const submitMessage = (e: FormEvent) => {
         e.preventDefault();
-        if (form.data.message_text.trim() === '') return;
+        const text = form.data.message_text.trim();
+        if (text === '' && pendingFiles.length === 0) return;
+        // Pakai FormData manual: Inertia otomatis multipart kalau ada File.
+        // `form.post` dengan File array butuh forceFormData di beberapa versi.
+        form.transform((data) => ({
+            ...data,
+            message_text: text,
+        }));
         form.post(route('chat.messages.store', room.id), {
             preserveScroll: true,
-            onSuccess: () => form.reset(),
+            forceFormData: true,
+            onSuccess: () => {
+                form.reset();
+                setPendingFiles([]);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            },
         });
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+        const newFiles: File[] = [];
+        for (let i = 0; i < files.length && pendingFiles.length + newFiles.length < 5; i++) {
+            newFiles.push(files[i]);
+        }
+        if (files.length > 5 - pendingFiles.length) {
+            alert(`Maksimal 5 lampiran per pesan. Hanya ${5 - pendingFiles.length} yang ditambahkan.`);
+        }
+        setPendingFiles((prev) => [...prev, ...newFiles]);
+        form.setData('attachments', [...form.data.attachments, ...newFiles]);
+        // Reset input supaya bisa pilih file yang sama lagi
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const removePendingFile = (idx: number) => {
+        setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+        form.setData('attachments', form.data.attachments.filter((_, i) => i !== idx));
     };
 
     const submitInvite = (e: FormEvent) => {
@@ -370,14 +516,23 @@ export default function Show({ room, messages: initialMessages, members, reads: 
                                                 </button>
                                             </form>
                                         ) : (
-                                            <div
-                                                className={
-                                                    'mt-1 border-2 border-ink p-2 font-mono text-sm break-words ' +
-                                                    (m.is_deleted ? 'bg-cream text-ink/40 italic' : 'bg-cream text-ink')
-                                                }
-                                            >
-                                                {m.display_text}
-                                            </div>
+                                            <>
+                                                <div
+                                                    className={
+                                                        'mt-1 border-2 border-ink p-2 font-mono text-sm break-words ' +
+                                                        (m.is_deleted ? 'bg-cream text-ink/40 italic' : 'bg-cream text-ink')
+                                                    }
+                                                >
+                                                    {m.display_text}
+                                                </div>
+                                                {!m.is_deleted && m.attachments.length > 0 && (
+                                                    <div className="mt-1 space-y-1">
+                                                        {m.attachments.map((att) => (
+                                                            <AttachmentView key={att.id} att={att} />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
 
                                         {!isEditing && (canEdit || canDelete) && !m.is_deleted && (
@@ -424,10 +579,42 @@ export default function Show({ room, messages: initialMessages, members, reads: 
                         </div>
                     )}
 
+                    {/* Preview lampiran yang dipilih sebelum kirim */}
+                    {pendingFiles.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2 border-t-2 border-ink/10 bg-cream/50 p-2 sm:grid-cols-3">
+                            {pendingFiles.map((f, i) => (
+                                <AttachmentThumb
+                                    key={`${f.name}-${i}`}
+                                    file={f}
+                                    onRemove={() => removePendingFile(i)}
+                                />
+                            ))}
+                        </div>
+                    )}
+
                     <form
                         onSubmit={submitMessage}
+                        encType="multipart/form-data"
                         className="flex gap-2 border-t-3 border-ink bg-cream p-3"
                     >
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.doc,.docx,.xls,.xlsx"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                            data-test="attachment-input"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={form.processing || pendingFiles.length >= 5}
+                            title={pendingFiles.length >= 5 ? 'Maks 5 lampiran' : 'Pilih lampiran'}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center border-3 border-ink bg-white text-lg shadow-brutal-sm transition-transform hover:translate-x-[-1px] hover:translate-y-[-1px] disabled:opacity-40 disabled:hover:translate-x-0 disabled:hover:translate-y-0"
+                        >
+                            📎
+                        </button>
                         <input
                             type="text"
                             value={form.data.message_text}
@@ -443,14 +630,17 @@ export default function Show({ room, messages: initialMessages, members, reads: 
                         <Button
                             type="submit"
                             variant="pink"
-                            disabled={form.processing || form.data.message_text.trim() === ''}
+                            disabled={
+                                form.processing
+                                || (form.data.message_text.trim() === '' && pendingFiles.length === 0)
+                            }
                         >
                             Kirim
                         </Button>
                     </form>
-                    {form.errors.message_text && (
+                    {(form.errors.message_text || (form.errors as any).attachments) && (
                         <p className="border-t-2 border-ink bg-brutal-pink/20 px-3 py-2 font-mono text-xs">
-                            {form.errors.message_text}
+                            {form.errors.message_text || (form.errors as any).attachments}
                         </p>
                     )}
                 </div>

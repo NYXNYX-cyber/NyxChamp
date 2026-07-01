@@ -35,6 +35,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/chat/{room}/messages', [ChatController::class, 'storeMessage'])->name('chat.messages.store');
     Route::patch('/chat/{room}/messages/{message}', [ChatController::class, 'updateMessage'])->name('chat.messages.update');
     Route::delete('/chat/{room}/messages/{message}', [ChatController::class, 'deleteMessage'])->name('chat.messages.delete');
+    Route::post('/chat/{room}/messages/{message}/attachments', [ChatController::class, 'uploadAttachment'])->name('chat.messages.attachments.store');
+    Route::get('/chat/{room}/attachments/{attachment}/download', [ChatController::class, 'downloadAttachment'])->name('chat.attachments.download');
     Route::post('/chat/{room}/read', [ChatController::class, 'markRead'])->name('chat.messages.read');
     Route::post('/chat/{room}/members', [ChatController::class, 'inviteMember'])->name('chat.members.invite');
 

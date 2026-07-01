@@ -91,9 +91,11 @@ class ChatControllerTest extends TestCase
         $user = User::factory()->student()->create();
         $room = ChatRoom::factory()->create(['created_by' => $user->id]);
 
+        // Fase 9: boleh kirim text kosong KALAU ada attachment.
+        // Tanpa text + tanpa attachment → 422.
         $this->actingAs($user)
             ->post(route('chat.messages.store', $room), ['message_text' => ''])
-            ->assertSessionHasErrors('message_text');
+            ->assertStatus(422);
     }
 
     public function test_store_message_validates_max_length(): void

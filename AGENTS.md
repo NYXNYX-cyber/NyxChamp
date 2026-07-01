@@ -164,7 +164,11 @@ Mengganti salah satu token di bawah = **melanggar spec**. Diskusikan dulu.
 - `touch /tmp/firecrawl-active` — refresh auto-stop window (3 menit idle)
 - `tail /var/log/firecrawl-auto-stop.log` — log auto-stop
 
-> Setup lengkap lihat `deploy/SETUP.md`.
+### Smoke test (Fase besar)
+- `php scripts/smoke_fase8.php` — chat polish E2E (11 check: edit/delete/read receipts)
+- `php scripts/smoke_fase9.php` — file attachment E2E (11 check: upload/download/reject/soft-delete)
+
+> Setup lengkap lihat `deploy/SETUP.md`. Catatan Fase 9: production butuh `post_max_size=20M` + `upload_max_filesize=20M` di `php.ini` (5 lampiran × 10MB max = 50MB worst case, 20M cukup untuk single message dengan image 5MB).
 
 ## 6b. Fase yang Sudah Selesai
 - **Fase 0** — Fondasi: Laravel 13.17 + Breeze (Inertia + React + TS) + Reverb + Python FastAPI scraper skeleton di `scraper/`
@@ -176,8 +180,9 @@ Mengganti salah satu token di bawah = **melanggar spec**. Diskusikan dulu.
 - **Fase 6** — Production-like stack: MySQL 8 + Redis 7 di Scraping server (`docker/nyxchamp-stack/docker-compose.yml`, port 3306 + 6380). Laravel `.env`: `DB_CONNECTION=mysql`, `QUEUE_CONNECTION=redis`, `CACHE_STORE=redis`, `SESSION_DRIVER=redis`. `php artisan migrate:fresh` jalan sukses (8 migrasi: users, cache, jobs, role+institution, competitions, chat_rooms, chat_room_members, chat_messages). Queue Redis verified: dispatch + worker (backoff 60s dihormati) + `failed()` callback log ke `storage/logs/scraper.log`. Systemd unit: `deploy/systemd/nyxchamp-queue.service` (Production-ready) + `nyxchamp-reverb.service` (Fase 7 placeholder). Panduan deploy lengkap di `deploy/SETUP.md`.
 - **Fase 7** — Chat real-time Reverb + 3 channel types: `ChatController` (index, show, store message, invite member, create group bimbingan), `MessageSent` event broadcast ke private `chat.room.{id}`, channel auth di `routes/channels.php` (private: anggota; presence: anggota + emit info online), route group bimbingan di halaman detail lomba (teacher/admin only, idempotent per guru). React: `Pages/Chat/{Index,Show}.tsx` dengan `useEcho` (live message) + `useEchoPresence` (indikator online + jumlah user aktif), layout Neo-Brutalisme (border 3-4px, shadow hard offset, JetBrains Mono untuk teks chat). Tombol "Buat Grup Bimbingan" di `Pages/Competitions/Show.tsx` aktif untuk teacher/admin. Reverb server start: `php artisan reverb:start --port=8080` (systemd `nyxchamp-reverb.service` di prod).
 - **Fase 8** — Chat polish (edit/delete/typing/read receipts): migration `chat_messages` (tambah `edited_at`, `deleted_at`, `deleted_by`) + tabel baru `chat_room_reads` (composite PK room_id+user_id). `ChatMessage` model: accessor `displayText()`, `isEdited()`, `isDeleted()`, `isEditable()` (window 15 menit). 3 event baru: `MessageEdited` (broadcast text baru + edited_at), `MessageDeleted` (broadcast id saja, defense-in-depth), `MessagesRead` (ke presence channel, payload: user_id + last_read_message_id). `ChatController` +3 method: `updateMessage` (sender only, 403 kalau lewat window atau deleted), `deleteMessage` (sender atau admin; soft delete, text asli tetap di DB), `markRead` (upsert `chat_room_reads`, dispatch event). Routes: PATCH `chat.messages.update`, DELETE `chat.messages.delete`, POST `chat.messages.read`. Frontend `Pages/Chat/Show.tsx`: tombol Edit (disabled kalau lewat window) + inline form; tombol Hapus (konfirmasi); label "(diedit)" + placeholder "[Pesan dihapus]"; auto mark-read setiap ada message baru; render "✓ Dibaca oleh X" per message; typing indicator via presence channel `whisper('typing', {userId})` + debounce 2.5 detik; emit typing throttled 1 detik.
+- **Fase 9** — File attachment: migration `chat_attachments` (id, message_id FK CASCADE, uploaded_by FK RESTRICT, disk, file_path, original_name, mime_type, size_bytes). Disk `chat` baru di `config/filesystems.php` (`storage/app/chat`, private, throw/report on). `ChatController` +2 method: `uploadAttachment` (additive, sender only) + `downloadAttachment` (StreamedResponse, cek membership, 404 kalau file hilang). `storeMessage` diupdate: `message_text` jadi nullable (boleh text-only, file-only, atau keduanya), validate `attachments[]` (max 5, whitelist MIME). Batas ukuran: image 5MB, doc 10MB (validator per kategori via helper). Path strategy: `room-{id}/{yyyy}/{mm}/{ulid}-{safe_name}`. Frontend `Pages/Chat/Show.tsx`: tombol 📎 + hidden `<input type="file" multiple>`, preview grid (image thumb / PDF card / DOC card) sebelum kirim, display inline `<img max-h-64>` untuk image, card unduh untuk PDF/doc. `Message` type + `Attachment` type, `MessageSent` echo handler include `attachments[]`. Routes: POST `chat.messages.attachments.store`, GET `chat.attachments.download`. Catatan: hard-delete message cascade hapus row attachment tapi FILE di disk tetap (cleanup via cron — TODO Fase Future). Soft-delete message: row tetap, payload sembunyi (UI), file tetap di disk (audit trail). SVG **diblok** eksplisit (XSS). `php artisan storage:link` tidak dipakai (disk private, semua via controller). Production butuh `post_max_size=20M` di `php.ini` (lihat `deploy/SETUP.md`).
 
-Test lulus: **122 passed, 356 assertions** (`php artisan test`) + **40 passed** (`scraper/pytest`) per fase ini. Screenshot preview: `docs/screenshots/`.
+Test lulus: **143 passed, 447 assertions** (`php artisan test`) + **40 passed** (`scraper/pytest`) per fase ini. Screenshot preview: `docs/screenshots/`. Smoke test E2E: `scripts/smoke_fase9.php` (11 check lulus, semua skenario upload/download/reject/soft-delete).
 
 ## 7. TODO & Keputusan yang Belum Diambil
 - [ ] Conventional Commits penuh (scope, body, footer) — perlu keputusan tim
@@ -188,6 +193,10 @@ Test lulus: **122 passed, 356 assertions** (`php artisan test`) + **40 passed** 
 - [ ] Strategi auth channel Reverb (sesi Laravel vs JWT) — rancangan sebut dua-duanya
 - [ ] Inisialisasi `composer.json` & `package.json` (saat coding mulai)
 - [ ] Setup CI/CD (GitHub Actions?) — belum diputuskan
+- [ ] **Fase 9 cleanup** — cron job hapus file orphan di `storage/app/chat/` (kalau message force-delete). Saat ini file tetap (audit trail + safe default).
+- [ ] **Fase 9 hardening** — antivirus scan (ClamAV) untuk PDF/DOC. Pilot skip.
+- [ ] **Fase 9 image optimization** — auto-resize gambar > 1MB jadi max 1600px. Pilot skip.
+- [ ] **Fase 9 quota** — disk usage monitor per user. Pilot skip.
 
 ## 8. Catatan untuk Agen Berikutnya
 - Jangan mulai dari猜测. Baca `Rancangan Portal Lomba Laravel.md` dulu sebelum usulkan perubahan.

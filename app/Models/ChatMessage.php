@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Pesan individual di dalam chat room (lihat Rancangan §3 + AGENTS.md §3.3).
@@ -67,6 +68,11 @@ class ChatMessage extends Model
     public function deleter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(ChatAttachment::class, 'chat_message_id');
     }
 
     /**

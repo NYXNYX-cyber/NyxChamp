@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\MessageSent;
+use App\Models\ChatAttachment;
 use App\Models\ChatMessage;
 use App\Models\ChatRoom;
 use App\Models\ChatRoomMember;
@@ -10,10 +11,14 @@ use App\Models\Competition;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Chat real-time controller (lihat Rancangan §4 + AGENTS.md §3.5).
@@ -21,7 +26,9 @@ use Symfony\Component\HttpFoundation\JsonResponse;
  * Skema URL:
  *   GET  /chat                                    list room user
  *   GET  /chat/{room}                             view room + history
- *   POST /chat/{room}/messages                    kirim pesan
+ *   POST /chat/{room}/messages                    kirim pesan (+ attachments[])
+ *   POST /chat/{room}/messages/{message}/attachments    upload lampiran (additive)
+ *   GET  /chat/{room}/attachments/{attachment}/download  stream lampiran (private)
  *   POST /lomba/{competition}/grup-bimbingan      guru buat grup (competition-scoped)
  *   POST /chat/{room}/members                     undang anggota (teacher/admin)
  *
@@ -32,6 +39,28 @@ use Symfony\Component\HttpFoundation\JsonResponse;
  */
 class ChatController extends Controller
 {
+    /** Batas lampiran per pesan. */
+    public const MAX_ATTACHMENTS_PER_MESSAGE = 5;
+
+    /** Batas ukuran image (5 MB). */
+    public const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+    /** Batas ukuran PDF / dokumen Office (10 MB). */
+    public const MAX_DOC_BYTES = 10 * 1024 * 1024;
+
+    /** MIME types yang diizinkan (SVG DITOLAK — XSS risk). */
+    public const ALLOWED_MIMES = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
+
     /**
      * List semua room yang user ikuti (room yang dibuat + yang di-invite).
      */
@@ -80,7 +109,7 @@ class ChatController extends Controller
         $this->authorizeAccess($request->user(), $room);
 
         $messages = $room->messages()
-            ->with('sender:id,name,role')
+            ->with(['sender:id,name,role', 'attachments'])
             ->orderBy('created_at')
             ->limit($request->integer('limit', 50))
             ->get()
@@ -97,6 +126,19 @@ class ChatController extends Controller
                 'is_deleted' => $m->isDeleted(),
                 'created_at' => $m->created_at?->toIso8601String(),
                 'edited_at' => $m->edited_at?->toIso8601String(),
+                'attachments' => $m->isDeleted()
+                    ? []
+                    : $m->attachments->map(fn (ChatAttachment $a) => [
+                        'id' => $a->id,
+                        'original_name' => $a->original_name,
+                        'mime_type' => $a->mime_type,
+                        'size_bytes' => $a->size_bytes,
+                        'human_size' => $a->humanSize(),
+                        'is_image' => $a->isImage(),
+                        'is_pdf' => $a->isPdf(),
+                        'is_document' => $a->isDocument(),
+                        'download_url' => route('chat.attachments.download', ['room' => $room->id, 'attachment' => $a->id]),
+                    ])->all(),
             ]);
 
         $members = $room->members()
@@ -244,7 +286,8 @@ class ChatController extends Controller
     }
 
     /**
-     * Kirim pesan ke room. Validasi: user harus anggota, text tidak kosong.
+     * Kirim pesan ke room. Validasi: user harus anggota.
+     * Optional attachments[] (max 5, image 5MB, doc 10MB).
      * Dispatch event MessageSent (broadcast ke private channel).
      */
     public function storeMessage(Request $request, ChatRoom $room): RedirectResponse|JsonResponse
@@ -252,24 +295,171 @@ class ChatController extends Controller
         $this->authorizeAccess($request->user(), $room);
 
         $data = $request->validate([
-            'message_text' => ['required', 'string', 'min:1', 'max:5000'],
+            'message_text' => ['nullable', 'string', 'min:1', 'max:5000'],
+            'attachments' => ['nullable', 'array', 'max:'.self::MAX_ATTACHMENTS_PER_MESSAGE],
+            'attachments.*' => [
+                'file',
+                'mimetypes:'.implode(',', self::ALLOWED_MIMES),
+            ],
         ]);
 
-        $message = ChatMessage::create([
-            'chat_room_id' => $room->id,
-            'sender_id' => $request->user()->id,
-            'message_text' => trim($data['message_text']),
-        ]);
+        $text = trim((string) ($data['message_text'] ?? ''));
+        $files = $request->file('attachments') ?? [];
+
+        abort_if($text === '' && count($files) === 0, 422, 'Pesan kosong. Kirim teks atau lampiran.');
+
+        $message = DB::transaction(function () use ($room, $request, $text, $files) {
+            $msg = ChatMessage::create([
+                'chat_room_id' => $room->id,
+                'sender_id' => $request->user()->id,
+                'message_text' => $text,
+            ]);
+
+            foreach ($files as $file) {
+                $this->validateFileSize($file);
+                $this->storeAttachment($msg, $file, $request->user()->id);
+            }
+
+            return $msg->load('attachments');
+        });
 
         broadcast(new MessageSent($message))->toOthers();
 
         if ($request->wantsJson()) {
             return response()->json([
                 'message' => $message->only(['id', 'message_text', 'created_at']),
+                'attachment_count' => $message->attachments->count(),
             ], 201);
         }
 
         return back(303);
+    }
+
+    /**
+     * Tambah lampiran ke message yang sudah ada. Sender only.
+     * Dipakai untuk kirim file setelah text terkirim (kalau frontend
+     * mau 2-step). Untuk pilot, frontend pakai 1-step via storeMessage.
+     */
+    public function uploadAttachment(Request $request, ChatRoom $room, ChatMessage $message): RedirectResponse|JsonResponse
+    {
+        $this->authorizeAccess($request->user(), $room);
+
+        abort_unless((int) $message->chat_room_id === (int) $room->id, 404);
+        abort_unless((int) $message->sender_id === (int) $request->user()->id, 403, 'Hanya pengirim yang bisa menambah lampiran.');
+        abort_if($message->isDeleted(), 403, 'Tidak bisa menambah lampiran ke pesan yang dihapus.');
+
+        $request->validate([
+            'attachments' => ['required', 'array', 'min:1', 'max:'.self::MAX_ATTACHMENTS_PER_MESSAGE],
+            'attachments.*' => [
+                'file',
+                'mimetypes:'.implode(',', self::ALLOWED_MIMES),
+            ],
+        ]);
+
+        $files = $request->file('attachments');
+
+        DB::transaction(function () use ($message, $files, $request) {
+            foreach ($files as $file) {
+                $this->validateFileSize($file);
+                $this->storeAttachment($message, $file, $request->user()->id);
+            }
+        });
+
+        $message->refresh();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'attachment_count' => $message->attachments->count(),
+            ]);
+        }
+
+        return back(303);
+    }
+
+    /**
+     * Stream file lampiran. Cek membership dulu (private disk).
+     * Pakai Storage::download() — header Content-Disposition aman dari
+     * path traversal, nama file asli di-quote.
+     */
+    public function downloadAttachment(Request $request, ChatRoom $room, ChatAttachment $attachment): StreamedResponse
+    {
+        $this->authorizeAccess($request->user(), $room);
+
+        abort_unless((int) $attachment->message->chat_room_id === (int) $room->id, 404);
+
+        abort_unless($attachment->exists(), 404, 'File tidak ditemukan di storage.');
+
+        return Storage::disk($attachment->disk)->download(
+            $attachment->file_path,
+            $attachment->original_name,
+            [
+                'Content-Type' => $attachment->mime_type,
+                'Content-Length' => (string) $attachment->size_bytes,
+            ],
+        );
+    }
+
+    /**
+     * Validasi ukuran file per kategori mime (image vs doc).
+     */
+    protected function validateFileSize(UploadedFile $file): void
+    {
+        $max = str_starts_with((string) $file->getMimeType(), 'image/')
+            ? self::MAX_IMAGE_BYTES
+            : self::MAX_DOC_BYTES;
+
+        abort_if($file->getSize() > $max, 422, sprintf(
+            'File %s (%s) melebihi batas %s.',
+            $file->getClientOriginalName(),
+            $this->humanFileSize($file->getSize()),
+            $this->humanFileSize($max),
+        ));
+    }
+
+    protected function humanFileSize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes.' B';
+        }
+        if ($bytes < 1024 * 1024) {
+            return number_format($bytes / 1024, 1).' KB';
+        }
+        return number_format($bytes / 1024 / 1024, 1).' MB';
+    }
+
+    /**
+     * Simpan file ke disk 'chat' dengan path sharded.
+     * Transaction-safe: kalau insert DB gagal, file yang sudah ditulis
+     * akan jadi orphan. Untuk Fase 9 pilot acceptable (cleanup manual
+     * via cron). Production perlu async cleanup job.
+     */
+    protected function storeAttachment(ChatMessage $message, UploadedFile $file, int $uploaderId): ChatAttachment
+    {
+        $safeName = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME), '_');
+        $safeName = $safeName !== '' ? $safeName : 'file';
+        $safeName = Str::limit($safeName, 200, '');
+
+        $ext = $file->getClientOriginalExtension() ?: $file->extension();
+        $filename = Str::ulid()->toBase32().($ext ? '.'.$ext : '');
+
+        $now = now();
+        $path = "room-{$message->chat_room_id}/{$now->format('Y/m')}/{$filename}";
+
+        Storage::disk('chat')->putFileAs(
+            dirname($path),
+            $file,
+            basename($path),
+        );
+
+        return ChatAttachment::create([
+            'chat_message_id' => $message->id,
+            'uploaded_by' => $uploaderId,
+            'disk' => 'chat',
+            'file_path' => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getMimeType() ?: 'application/octet-stream',
+            'size_bytes' => $file->getSize(),
+        ]);
     }
 
     /**
