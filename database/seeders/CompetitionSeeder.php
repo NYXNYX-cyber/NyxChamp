@@ -35,7 +35,7 @@ class CompetitionSeeder extends Seeder
                 'registration_deadline' => $now->copy()->addDays(21)->toDateString(),
                 'level' => Competition::LEVEL_PROVINSI,
                 'registration_fee' => 50000,
-                'source_url' => 'https://ikutlomba.id/',
+                'source_url' => 'https://lombahub.com/',
             ],
             [
                 'title' => 'Olimpiade Matematika Nasional Tingkat SMA 2026',
