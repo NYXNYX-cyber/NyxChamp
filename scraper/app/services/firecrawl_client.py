@@ -171,3 +171,105 @@ class FirecrawlClient:
         if isinstance(md, str):
             return md
         return ""
+
+    async def search(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        include_domains: list[str] | None = None,
+        lang: str = "id",
+    ) -> list[dict[str, Any]]:
+        """Cari via Firecrawl /v1/search.
+
+        Dipakai sebagai fallback kalau direct scrape gagal atau portal
+        login-required (lihat scraper.py step 0). Return list of result
+        dicts dengan minimal key: {url, title, markdown?, description?}.
+
+        Args:
+            query: Search query string. Pakai site:<domain> operator untuk
+                filter ke domain tertentu (mis. "site:ikutlomba.id lomba 2026").
+            limit: Maks hasil (default 10, max 50 di Firecrawl).
+            include_domains: Opsional, list domain yang diizinkan
+                (Firecrawl akan enforce).
+            lang: Bahasa hasil (default "id" Indonesia).
+
+        Returns:
+            List of result dicts. Bisa kosong kalau search gagal atau
+            tidak ada hasil.
+
+        Raises:
+            httpx.HTTPError: Untuk error HTTP 5xx/timeout yang tidak bisa recover.
+        """
+        if not query:
+            return []
+
+        payload: dict[str, Any] = {
+            "query": query,
+            "limit": min(limit, 50),
+            "lang": lang,
+        }
+        if include_domains:
+            payload["includeDomains"] = include_domains
+
+        last_exc: Exception | None = None
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                response = await self._client.post("/v1/search", json=payload)
+            except httpx.TimeoutException as exc:
+                last_exc = exc
+                logger.warning(
+                    "firecrawl search timeout attempt=%d query=%s",
+                    attempt, query,
+                )
+                await self._sleep_backoff(attempt)
+                continue
+            except httpx.HTTPError as exc:
+                last_exc = exc
+                logger.warning(
+                    "firecrawl search httpx error attempt=%d query=%s err=%s",
+                    attempt, query, exc,
+                )
+                await self._sleep_backoff(attempt)
+                continue
+
+            status = response.status_code
+            if status == 200:
+                data = response.json()
+                if not data.get("success", False):
+                    logger.warning(
+                        "firecrawl search success=false query=%s body=%s",
+                        query, response.text[:200],
+                    )
+                    return []
+                # Format response: {"success": true, "data": [...]} atau
+                # {"success": true, "data": {"results": [...]}}
+                inner = data.get("data") or {}
+                if isinstance(inner, list):
+                    return inner
+                if isinstance(inner, dict):
+                    return inner.get("results") or inner.get("data") or []
+                return []
+            if status in (403, 429):
+                # Blocked / rate-limited. Jangan retry.
+                raise PortalBlockedError(
+                    f"Firecrawl search status={status} query={query} body={response.text[:200]}"
+                )
+            if 500 <= status < 600:
+                last_exc = httpx.HTTPStatusError(
+                    f"server {status}", request=response.request, response=response
+                )
+                logger.warning(
+                    "firecrawl search 5xx attempt=%d status=%d",
+                    attempt, status,
+                )
+                await self._sleep_backoff(attempt)
+                continue
+            raise httpx.HTTPStatusError(
+                f"client {status} query={query} body={response.text[:200]}",
+                request=response.request,
+                response=response,
+            )
+
+        assert last_exc is not None
+        raise last_exc

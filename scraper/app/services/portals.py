@@ -7,6 +7,11 @@ Setiap portal punya:
 - hostname: domain portal (untuk filter link detail)
 - detail_pattern: regex terhadap href (absolute URL) untuk deteksi
   link detail lomba. Harus cocok dengan hostname + path pattern.
+- tier: 1 = primary (public listing visible), 2 = degraded (login required
+  atau parked domain — pakai Google Search fallback)
+- login_required: True kalau halaman listing butuh auth (SPA shell 4.6KB
+  dari server). Scraper otomatis fallback ke Google Search.
+- public_listing: True kalau halaman index expose list lomba tanpa login.
 
 Penambahan portal baru: cek ToS & rate-limit dulu, lalu tambah entry
 di TARGET_PORTALS (config.py) dan dict ini.
@@ -44,10 +49,19 @@ class Portal:
     listing_url: str
     hostname: str
     detail_pattern: re.Pattern[str]
+    tier: int = 1
+    login_required: bool = False
 
 
-# Setiap entry di bawah ini manual: hostname + pattern. Tidak ada shared
-# regex generik (terlalu longgar, match portal lain).
+# Tier 1 (primary): public listing visible, scraper pakai direct Firecrawl
+# Tier 2 (degraded): login required atau parked. Scraper fallback ke
+#                    Google Search "site:<domain>" untuk menemukan lomba.
+#
+# Tier diurut berdasarkan prioritas AGENTS.md §3.4:
+#   kompetisi.co.id & lombahub.com = Tier 1 (paling reliable, public listing)
+#   luarkampus.id, ajangjuara.com = Tier 1 (cukup stabil)
+#   ikutlomba.id = Tier 2 (login required, SPA shell 4.6KB)
+#   sejutacita.id = Tier 2 (parked domain, response 1.4KB)
 PORTALS: dict[str, Portal] = {
     "lombahub_com": Portal(
         key="lombahub_com",
@@ -55,13 +69,8 @@ PORTALS: dict[str, Portal] = {
         listing_url="https://lombahub.com/",
         hostname="lombahub.com",
         detail_pattern=_make_detail_pattern("lombahub.com"),
-    ),
-    "ikutlomba_id": Portal(
-        key="ikutlomba_id",
-        name="Ikutlomba.id",
-        listing_url="https://www.ikutlomba.id/",
-        hostname="www.ikutlomba.id",
-        detail_pattern=_make_detail_pattern("www.ikutlomba.id"),
+        tier=1,
+        login_required=False,
     ),
     "kompetisi_co_id": Portal(
         key="kompetisi_co_id",
@@ -69,20 +78,8 @@ PORTALS: dict[str, Portal] = {
         listing_url="https://home.kompetisi.co.id/",
         hostname="home.kompetisi.co.id",
         detail_pattern=_make_detail_pattern("home.kompetisi.co.id"),
-    ),
-    "ajangjuara_com": Portal(
-        key="ajangjuara_com",
-        name="AjangJuara",
-        listing_url="https://ajangjuara.com/",
-        hostname="ajangjuara.com",
-        detail_pattern=_make_detail_pattern("ajangjuara.com"),
-    ),
-    "sejutacita_id": Portal(
-        key="sejutacita_id",
-        name="SejutaCita",
-        listing_url="https://sejutacita.id/",
-        hostname="sejutacita.id",
-        detail_pattern=_make_detail_pattern("sejutacita.id"),
+        tier=1,
+        login_required=False,
     ),
     "luarkampus_id": Portal(
         key="luarkampus_id",
@@ -90,6 +87,35 @@ PORTALS: dict[str, Portal] = {
         listing_url="https://luarkampus.id/events",
         hostname="luarkampus.id",
         detail_pattern=_make_detail_pattern("luarkampus.id"),
+        tier=1,
+        login_required=False,
+    ),
+    "ajangjuara_com": Portal(
+        key="ajangjuara_com",
+        name="AjangJuara",
+        listing_url="https://ajangjuara.com/",
+        hostname="ajangjuara.com",
+        detail_pattern=_make_detail_pattern("ajangjuara.com"),
+        tier=1,
+        login_required=False,
+    ),
+    "ikutlomba_id": Portal(
+        key="ikutlomba_id",
+        name="Ikutlomba.id",
+        listing_url="https://www.ikutlomba.id/",
+        hostname="www.ikutlomba.id",
+        detail_pattern=_make_detail_pattern("www.ikutlomba.id"),
+        tier=2,
+        login_required=True,
+    ),
+    "sejutacita_id": Portal(
+        key="sejutacita_id",
+        name="SejutaCita",
+        listing_url="https://sejutacita.id/",
+        hostname="sejutacita.id",
+        detail_pattern=_make_detail_pattern("sejutacita.id"),
+        tier=2,
+        login_required=True,
     ),
 }
 
@@ -101,6 +127,11 @@ def get_portal(key: str) -> Portal:
             f"Portal '{key}' tidak ada di registry. Pilihan: {', '.join(sorted(PORTALS))}"
         )
     return PORTALS[key]
+
+
+def get_tier1_portals() -> list[Portal]:
+    """Return daftar portal Tier 1 (primary, public listing visible)."""
+    return [p for p in PORTALS.values() if p.tier == 1]
 
 
 def is_detail_link(href: str, portal: Portal) -> bool:

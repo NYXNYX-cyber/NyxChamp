@@ -100,40 +100,60 @@ async def scrape_portal(req: ScrapeRequest) -> ScrapeResponse:
 
     async with FirecrawlClient() as fc:
         # Step 1: scrape halaman listing
-        try:
-            listing_md = await fc.scrape_markdown(portal.listing_url)
-        except PortalBlockedError as exc:
-            return ScrapeResponse(
-                job_id=req.job_id,
-                portal=req.portal,
-                items=[],
-                errors=[f"listing diblokir: {exc}"],
-            )
-        except Exception as exc:
-            return ScrapeResponse(
-                job_id=req.job_id,
-                portal=req.portal,
-                items=[],
-                errors=[f"listing scrape gagal: {exc}"],
-            )
-
-        if not listing_md:
-            errors.append("listing kosong / tidak ada markdown")
-            return ScrapeResponse(
-                job_id=req.job_id, portal=req.portal, items=[], errors=errors
-            )
-
-        # Step 2: extract detail links
+        # Untuk portal Tier 2 (login_required / parked) atau kalau
+        # listing kosong setelah scrape, fallback ke Google Search
+        # "site:<domain> lomba 2026" untuk dapat URL detail.
+        listing_md = ""
+        detail_urls: list[str] = []
         base_url = f"https://{hostname_of(portal.listing_url)}"
-        detail_urls = extract_detail_links(listing_md, portal, base_url)
-        detail_urls = detail_urls[:max_pages]
+
+        if not portal.login_required:
+            try:
+                listing_md = await fc.scrape_markdown(portal.listing_url)
+            except PortalBlockedError as exc:
+                errors.append(f"listing diblokir: {exc}")
+            except Exception as exc:
+                errors.append(f"listing scrape gagal: {exc}")
+
+            if listing_md:
+                detail_urls = extract_detail_links(listing_md, portal, base_url)
+
+        # Fallback ke Google Search kalau:
+        # - portal login_required (Tier 2), ATAU
+        # - listing kosong setelah direct scrape
+        if not detail_urls:
+            logger.info(
+                "portal=%s tier=%d fallback=google_search listing_chars=%d",
+                portal.key, portal.tier, len(listing_md),
+            )
+            try:
+                search_query = f"site:{portal.hostname} lomba 2026"
+                results = await fc.search(
+                    search_query,
+                    limit=min(max_pages * 2, 20),
+                    include_domains=[portal.hostname],
+                    lang="id",
+                )
+                for r in results:
+                    url = r.get("url") or r.get("sourceUrl") or ""
+                    if url and is_detail_link(url, portal):
+                        detail_urls.append(url)
+                    elif url and portal.hostname in url:
+                        # Link lain dari portal yang sama (bukan pattern lomba)
+                        detail_urls.append(url)
+                detail_urls = detail_urls[:max_pages]
+            except PortalBlockedError as exc:
+                errors.append(f"google search diblokir: {exc}")
+            except Exception as exc:
+                errors.append(f"google search gagal: {exc}")
+
         logger.info(
-            "portal=%s listing=%d_chars detail_links=%d max_pages=%d",
-            portal.key, len(listing_md), len(detail_urls), max_pages,
+            "portal=%s tier=%d listing=%d_chars detail_links=%d max_pages=%d",
+            portal.key, portal.tier, len(listing_md), len(detail_urls), max_pages,
         )
 
         if not detail_urls:
-            errors.append("tidak ada link detail lomba di halaman listing")
+            errors.append("tidak ada link detail lomba (listing + google search)")
             return ScrapeResponse(
                 job_id=req.job_id, portal=req.portal, items=[], errors=errors
             )

@@ -6,6 +6,7 @@ from app.services.portals import (
     PORTALS,
     extract_detail_links,
     get_portal,
+    get_tier1_portals,
     is_detail_link,
 )
 
@@ -85,3 +86,52 @@ def test_extract_detail_links_relative_urls():
     links = extract_detail_links(md, p, "https://lombahub.com")
     assert len(links) == 1
     assert links[0] == "https://lombahub.com/lomba/relative-path-2026"
+
+
+# ===== Tier 1 / login_required tests (Fase 5.5) =====
+
+def test_ikutlomba_marked_login_required():
+    """ikutlomba.id: login required, Tier 2. Scraper pakai Google Search fallback."""
+    p = get_portal("ikutlomba_id")
+    assert p.tier == 2
+    assert p.login_required is True
+
+
+def test_sejutacita_marked_login_required():
+    """sejutacita.id: parked/empty, Tier 2. Scraper pakai Google Search fallback."""
+    p = get_portal("sejutacita_id")
+    assert p.tier == 2
+    assert p.login_required is True
+
+
+def test_kompetisi_tier1_public_listing():
+    """kompetisi.co.id: public listing visible, Tier 1. Direct scrape OK."""
+    p = get_portal("kompetisi_co_id")
+    assert p.tier == 1
+    assert p.login_required is False
+
+
+def test_lombahub_tier1_public_listing():
+    p = get_portal("lombahub_com")
+    assert p.tier == 1
+    assert p.login_required is False
+
+
+def test_luarkampus_tier1_public_listing():
+    p = get_portal("luarkampus_id")
+    assert p.tier == 1
+    assert p.login_required is False
+
+
+def test_ajangjuara_tier1_public_listing():
+    p = get_portal("ajangjuara_com")
+    assert p.tier == 1
+    assert p.login_required is False
+
+
+def test_get_tier1_portals_returns_4():
+    """Tier 1 = 4 portal: lombahub, kompetisi, luarkampus, ajangjuara."""
+    tier1 = get_tier1_portals()
+    assert len(tier1) == 4
+    keys = sorted(p.key for p in tier1)
+    assert keys == ["ajangjuara_com", "kompetisi_co_id", "lombahub_com", "luarkampus_id"]
