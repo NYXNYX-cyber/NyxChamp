@@ -127,11 +127,12 @@ async def scrape_portal(req: ScrapeRequest) -> ScrapeResponse:
                 portal.key, portal.tier, len(listing_md),
             )
             try:
+                # Self-hosted Firecrawl tidak support `includeDomains`,
+                # jadi pakai `site:` operator di query string saja.
                 search_query = f"site:{portal.hostname} lomba 2026"
                 results = await fc.search(
                     search_query,
                     limit=min(max_pages * 2, 20),
-                    include_domains=[portal.hostname],
                     lang="id",
                 )
                 for r in results:

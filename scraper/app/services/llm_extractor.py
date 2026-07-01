@@ -18,6 +18,43 @@ from __future__ import annotations
 import json
 import logging
 import re
+from typing import Any
+
+
+def _extract_balanced_json(text: str) -> str | None:
+    """Cari object JSON pertama yang balanced (matching braces/brackets) dalam text.
+
+    Berguna kalau LLM output terpotong di tengah JSON object. Scan dari
+    posisi '{' pertama, lalu track kedalaman brace + ignore yang di
+    dalam string literal. Return substring JSON, atau None kalau tidak ketemu.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_str:
+            escape = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
 from datetime import date
 from typing import Any
 
@@ -143,7 +180,7 @@ class LLMExtractor:
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.1,
-                max_tokens=4000,
+                max_tokens=8000,
             )
         except Exception as exc:  # broad: openai SDK raises various exception types
             raise LLMError(f"LLM call gagal: {exc}") from exc
@@ -161,6 +198,9 @@ class LLMExtractor:
 
         LLM kadang membungkus array di {"competitions": [...]} (sesuai
         instruksi) atau kadang langsung [...]. Handle dua-duanya.
+
+        Fallback: kalau JSON terpotong (LLM hit max_tokens), coba extract
+        object JSON valid pertama yang nutup sebelum string terpotong.
         """
         if not raw or not raw.strip():
             return []
@@ -168,10 +208,23 @@ class LLMExtractor:
         # Strip markdown code fence kalau LLM bandel.
         cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.M)
 
+        # Attempt 1: parse langsung.
+        data: Any = None
         try:
             data = json.loads(cleaned)
-        except json.JSONDecodeError as exc:
-            raise LLMError(f"LLM output bukan JSON valid: {exc}; raw={raw[:200]}") from exc
+        except json.JSONDecodeError:
+            # Attempt 2: extract JSON object pertama yang nutup.
+            # Cari "{ ... }" dengan balanced braces.
+            extracted = _extract_balanced_json(cleaned)
+            if extracted:
+                try:
+                    data = json.loads(extracted)
+                except json.JSONDecodeError:
+                    pass
+            if data is None:
+                raise LLMError(
+                    f"LLM output bukan JSON valid (mungkin terpotong max_tokens); raw[:200]={raw[:200]}"
+                )
 
         # Normalisasi: kalau dict dengan key 'competitions' → ambil array.
         if isinstance(data, dict) and "competitions" in data:
@@ -212,10 +265,17 @@ class LLMExtractor:
                     "skip invalid LLM item: %s | item=%s", exc, raw_item
                 )
                 continue
-            # Filter: skip deadline yang sudah lewat (konsisten dengan Laravel
-            # scope 'open').
-            if comp.registration_deadline < date.today():
-                logger.info("skip past-deadline: %s", comp.title)
+            # Filter: skip deadline yang sudah lewat HANYA kalau lebih dari
+            # 90 hari (compile-time check, bukan runtime). Kompetisi yang
+            # baru lewat (≤90 hari) tetap disimpan untuk referensi —
+            # Laravel UI badge "pendaftaran masih buka" akan otomatis
+            # tandai mereka sebagai "tutup" tanpa hapus dari DB.
+            # Tujuannya: scraper jangan hilangkan data historis lomba
+            # yang baru lewat (guru/siswa sering cari arsip lomba untuk
+            # referensi tahun depan).
+            days_past = (date.today() - comp.registration_deadline).days
+            if days_past > 90:
+                logger.info("skip old (deadline %d hari lalu): %s", days_past, comp.title)
                 continue
             valid.append(comp)
 

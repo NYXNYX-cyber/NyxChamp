@@ -75,9 +75,13 @@ PORTALS: dict[str, Portal] = {
     "kompetisi_co_id": Portal(
         key="kompetisi_co_id",
         name="Kompetisi.co.id",
-        listing_url="https://home.kompetisi.co.id/",
-        hostname="home.kompetisi.co.id",
-        detail_pattern=_make_detail_pattern("home.kompetisi.co.id"),
+        listing_url="https://kompetisi.co.id/",
+        hostname="kompetisi.co.id",
+        # kompetisi.co.id pakai pattern /kompetisi?id=<id> (bukan path slug)
+        detail_pattern=re.compile(
+            r"^https?://(www\.)?kompetisi\.co\.id/kompetisi\?id=[a-zA-Z0-9]+/?$",
+            re.IGNORECASE,
+        ),
         tier=1,
         login_required=False,
     ),
@@ -95,7 +99,11 @@ PORTALS: dict[str, Portal] = {
         name="AjangJuara",
         listing_url="https://ajangjuara.com/",
         hostname="ajangjuara.com",
-        detail_pattern=_make_detail_pattern("ajangjuara.com"),
+        # AjangJuara pakai pattern /kompetisi?id=<id>
+        detail_pattern=re.compile(
+            r"^https?://(www\.)?ajangjuara\.com/kompetisi\?id=[a-zA-Z0-9]+/?$",
+            re.IGNORECASE,
+        ),
         tier=1,
         login_required=False,
     ),
