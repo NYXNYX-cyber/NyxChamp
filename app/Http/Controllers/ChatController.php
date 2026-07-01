@@ -9,6 +9,7 @@ use App\Models\ChatRoom;
 use App\Models\ChatRoomMember;
 use App\Models\Competition;
 use App\Models\User;
+use App\Notifications\InvitationNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -517,8 +518,10 @@ class ChatController extends Controller
 
         ChatRoomMember::firstOrCreate(
             ['chat_room_id' => $room->id, 'user_id' => $invitee->id],
-            ['joined_at' => now()],
+            ['joined_at' => now()]
         );
+
+        $invitee->notify(new InvitationNotification($room, $request->user()));
 
         return back(303)->with('status', $invitee->name . ' berhasil diundang.');
     }

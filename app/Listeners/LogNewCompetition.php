@@ -3,30 +3,38 @@
 namespace App\Listeners;
 
 use App\Events\NewCompetitionDetected;
+use App\Models\User;
+use App\Notifications\NewCompetitionNotification;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
-/**
- * Listener stub untuk NewCompetitionDetected.
- *
- * Fase 5: hanya log ke channel 'scraper' untuk audit trail. Fase 7
- * akan ganti body dengan dispatch ke Reverb channel publik
- * (lihat AGENTS.md §3.5).
- *
- * Listener diregistrasi via auto-discovery (EventServiceProvider
- * default Laravel 11/12/13).
- */
 class LogNewCompetition
 {
+    /**
+     * Handle the event.
+     */
     public function handle(NewCompetitionDetected $event): void
     {
-        $c = $event->competition;
-        Log::channel('scraper')->info('kompetisi baru terdeteksi', [
-            'id' => $c->id,
-            'slug' => $c->slug,
-            'title' => $c->title,
-            'level' => $c->level,
-            'deadline' => $c->registration_deadline?->toDateString(),
-            'hash_md5' => $c->hash_md5,
-        ]);
+        Log::info("Kompetisi baru dideteksi: {$event->competition->title} [ID: {$event->competition->id}]");
+
+        // Find users to notify based on role (admin always notified)
+        // or based on level preferences (teacher/student)
+        $users = User::all()->filter(function (User $user) use ($event) {
+            if ($user->role === 'admin') {
+                return true;
+            }
+
+            // Verify if the competition level is in the user's preferred levels
+            $preferredLevels = $user->getNotificationPreference('levels', ['kabupaten', 'provinsi', 'nasional', 'internasional']);
+
+            return in_array($event->competition->level, $preferredLevels);
+        });
+
+        if ($users->isNotEmpty()) {
+            Notification::send($users, new NewCompetitionNotification($event->competition));
+            Log::info("Notifikasi kompetisi baru dikirim ke " . $users->count() . " pengguna.");
+        }
     }
 }

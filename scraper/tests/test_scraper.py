@@ -31,12 +31,13 @@ def _make_item(title: str, days_from_now: int, level: str = "nasional") -> dict:
     d = (date.today() + timedelta(days=days_from_now)).isoformat()
     return {
         "title": title,
-        "organizer": "Test Org",
-        "description": f"Deskripsi untuk {title}",
-        "registration_deadline": d,
+        "organizer": "Penyelenggara Contoh",
+        "description": "Deskripsi Lomba",
+        "registration_deadline": deadline,
         "level": level,
         "registration_fee": 0,
-        "source_url": "https://lombahub.com/lomba/test",
+        "source_url": "https://example.com/nasional",
+        "image_url": "https://example.com/poster.jpg"
     }
 
 

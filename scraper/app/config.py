@@ -18,8 +18,9 @@ from dotenv import load_dotenv
 _repo_root = Path(__file__).resolve().parent.parent.parent
 _scraper_root = Path(__file__).resolve().parent.parent
 
-load_dotenv(_repo_root / ".env", override=False)
-load_dotenv(_scraper_root / ".env", override=True)
+if os.getenv("APP_ENV") != "testing":
+    load_dotenv(_repo_root / ".env", override=False)
+    load_dotenv(_scraper_root / ".env", override=True)
 
 
 # === Service (FastAPI server) ===

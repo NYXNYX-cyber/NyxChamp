@@ -3,7 +3,7 @@ import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import { Link, usePage } from '@inertiajs/react';
-import { PropsWithChildren, ReactNode, useState } from 'react';
+import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
 
 const ROLE_LABELS: Record<string, string> = {
     student: 'Siswa',
@@ -16,8 +16,30 @@ export default function Authenticated({
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
     const user = usePage().props.auth.user;
+    const { unread_notifications_count } = usePage().props.auth as any;
     const [showingNavigationDropdown, setShowingNavigationDropdown] =
         useState(false);
+
+    const [unreadCount, setUnreadCount] = useState(unread_notifications_count || 0);
+
+    useEffect(() => {
+        setUnreadCount(unread_notifications_count || 0);
+    }, [unread_notifications_count]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        // Listen for new notifications
+        const channel = window.Echo.private(`App.Models.User.${user.id}`);
+        
+        channel.notification((notification: any) => {
+            setUnreadCount((prev: number) => prev + 1);
+        });
+
+        return () => {
+            window.Echo.leave(`App.Models.User.${user.id}`);
+        };
+    }, [user.id]);
     const role = user.role ?? 'student';
 
     return (
@@ -61,6 +83,35 @@ export default function Authenticated({
                         </div>
 
                         <div className="hidden sm:ms-6 sm:flex sm:items-center">
+                            {/* Notification Link */}
+                            <div className="relative ms-3">
+                                <Link
+                                    href={route('notifications.index')}
+                                    className="relative inline-flex items-center p-2 border-3 border-black text-black bg-pink-brutal hover:bg-pink-brutal-hover font-bold shadow-brutal-sm transition ease-in-out duration-150"
+                                    title="Notifikasi"
+                                >
+                                    <svg
+                                        className="h-5 w-5"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="2"
+                                            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                                        />
+                                    </svg>
+                                    {unreadCount > 0 && (
+                                        <span className="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-mono font-bold leading-none text-black bg-yellow-brutal border-2 border-black">
+                                            {unreadCount}
+                                        </span>
+                                    )}
+                                </Link>
+                            </div>
+
                             <div className="relative ms-3">
                                 <Dropdown>
                                     <Dropdown.Trigger>
@@ -196,6 +247,9 @@ export default function Authenticated({
                         </div>
 
                         <div className="mt-3 space-y-1">
+                        <ResponsiveNavLink href={route('notifications.index')} active={route().current('notifications.index')}>
+                            Notifikasi {unreadCount > 0 ?  : ''}
+                        </ResponsiveNavLink>
                             <ResponsiveNavLink href={route('profile.edit')}>
                                 Profil
                             </ResponsiveNavLink>

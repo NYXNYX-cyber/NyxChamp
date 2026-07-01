@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\CompetitionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
@@ -51,6 +52,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/chat/{room}/messages/{message}', [ChatController::class, 'deleteMessage'])->name('chat.messages.delete');
     Route::post('/chat/{room}/messages/{message}/attachments', [ChatController::class, 'uploadAttachment'])->name('chat.messages.attachments.store');
     Route::get('/chat/{room}/attachments/{attachment}/download', [ChatController::class, 'downloadAttachment'])->name('chat.attachments.download');
+
+    // Notifikasi (Fase 10)
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+    Route::patch('/notifications/preferences', [NotificationController::class, 'updatePreferences'])->name('notifications.preferences.update');
     Route::post('/chat/{room}/read', [ChatController::class, 'markRead'])->name('chat.messages.read');
     Route::post('/chat/{room}/members', [ChatController::class, 'inviteMember'])->name('chat.members.invite');
 

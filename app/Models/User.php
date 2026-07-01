@@ -38,7 +38,24 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'notification_preferences' => 'array',
         ];
+    }
+
+    /**
+     * Get a notification preference by key with default fallbacks.
+     */
+    public function getNotificationPreference(string $key, $default = null)
+    {
+        $prefs = $this->notification_preferences ?? [];
+
+        $defaults = [
+            'email_enabled' => true,
+            'web_enabled' => true,
+            'levels' => ['kabupaten', 'provinsi', 'nasional', 'internasional'],
+        ];
+
+        return $prefs[$key] ?? $defaults[$key] ?? $default;
     }
 
     public function isAdmin(): bool
