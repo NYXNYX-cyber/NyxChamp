@@ -35,7 +35,7 @@ class CompetitionSeeder extends Seeder
                 'registration_deadline' => $now->copy()->addDays(21)->toDateString(),
                 'level' => Competition::LEVEL_PROVINSI,
                 'registration_fee' => 50000,
-                'source_url' => 'https://ikutlomba.id/hackathon-jabar-2026',
+                'source_url' => 'https://ikutlomba.id/',
             ],
             [
                 'title' => 'Olimpiade Matematika Nasional Tingkat SMA 2026',
@@ -62,7 +62,7 @@ class CompetitionSeeder extends Seeder
                 'registration_deadline' => $now->copy()->addDays(7)->toDateString(),
                 'level' => Competition::LEVEL_NASIONAL,
                 'registration_fee' => 25000,
-                'source_url' => 'https://luarkampus.id/lomba-esai-kebangsaan',
+                'source_url' => 'https://luarkampus.id/',
             ],
             [
                 'title' => 'Kompetisi Short Video Pelajar Indonesia 2026',
@@ -71,7 +71,7 @@ class CompetitionSeeder extends Seeder
                 'registration_deadline' => $now->copy()->subDays(5)->toDateString(),
                 'level' => Competition::LEVEL_NASIONAL,
                 'registration_fee' => 0,
-                'source_url' => 'https://lombahub.com/short-video-pelajar-2026',
+                'source_url' => 'https://lombahub.com/',
             ],
             [
                 'title' => 'Web Design Competition Sumatera Barat 2026',
