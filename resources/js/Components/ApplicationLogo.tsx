@@ -5,9 +5,8 @@ import { SVGAttributes } from 'react';
  *
  * Layout (viewBox 240x60):
  *   - "NYX" kuning di atas
- *   - Pink "C" sebagai huruf pertama "CHAMP" — pink C yang
- *     beneran kelihatan seperti huruf (pakai path C-shaped),
- *     bukan square
+ *   - "C" pink di bawah (render oleh font Syne 800, dijamin bentuknya
+ *     benar sebagai huruf C — bukan path manual)
  *   - "HAMP" cream melanjutkan wordmark
  *
  * Pakai di navbar / hero / footer.
@@ -31,39 +30,39 @@ export default function ApplicationLogo(props: SVGAttributes<SVGElement>) {
                 stroke="#000000"
                 strokeWidth="4"
             />
-            {/* "NYX" — baris atas, kuning, baseline di y=26 */}
+            {/* "NYX" — baris atas, kuning, baseline y=26 */}
             <text
                 x="14"
                 y="26"
                 fill="#FFEB3B"
                 fontFamily="Syne, sans-serif"
                 fontWeight="800"
-                fontSize="20"
+                fontSize="22"
                 letterSpacing="1"
             >
                 NYX
             </text>
-            {/* "C" pink — huruf pertama CHAMP, pakai path C-shape
-                (bukan rectangle) supaya kelihatan seperti huruf.
-                Stroke kuning tipis untuk kontras dengan background. */}
-            <path
-                d="M 24 40
-                   L 24 38
-                   A 6 6 0 1 0 24 50
-                   L 24 48"
-                fill="none"
-                stroke="#FF4081"
-                strokeWidth="6"
-                strokeLinecap="square"
-            />
-            {/* "HAMP" cream — sisa kata CHAMP, baseline di y=52 */}
+            {/* "C" pink — huruf pertama CHAMP, di-render oleh font
+                (bukan path manual) supaya bentuknya dijamin proper */}
             <text
-                x="36"
+                x="14"
+                y="52"
+                fill="#FF4081"
+                fontFamily="Syne, sans-serif"
+                fontWeight="800"
+                fontSize="22"
+                letterSpacing="1"
+            >
+                C
+            </text>
+            {/* "HAMP" cream — sisa kata CHAMP, baseline y=52 (sejajar C) */}
+            <text
+                x="34"
                 y="52"
                 fill="#F5F0E6"
                 fontFamily="Syne, sans-serif"
                 fontWeight="800"
-                fontSize="20"
+                fontSize="22"
                 letterSpacing="1"
             >
                 HAMP
