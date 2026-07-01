@@ -218,3 +218,39 @@ Test lulus: **153 passed, 487 assertions** (`php artisan test`) + **47 passed** 
 - Jika ada konflik antara dokumen rancangan dan best practice modern, **dokumen rancangan menang** sampai ada diskusi eksplisit untuk meng-update rancangan.
 - Jika ingin mengubah salah satu keputusan §3, **buka diskusi dulu**. Jangan langsung commit.
 - Jika menemukan hal di §7 yang menghambat, **flag ke user** — jangan putuskan sendiri.
+
+## 8.1 Server Dev Baru: 10.10.1.12 (NyxChamp)
+
+Sejak 2026-07-01, pindah ke server lokal **10.10.1.12** (hostname `NyxChamp`, Proxmox VM Ubuntu 24.04 fresh install, 4GB RAM / 9.8GB disk / 2 CPU). Server ini jadi dev workstation baru, bukan sandbox.
+
+**Stack ter-install lokal** (self-contained):
+- PHP 8.4.22 (sury.org repo, alternatif Ubuntu 8.3 default) + extensions: mysql, redis (via predis), bcmath, gd, intl, mbstring, curl, zip, opcache
+- Composer 2.10.1
+- Node.js 20.20.2 + npm 10.8.2
+- MySQL 8.0.46 (bind 127.0.0.1, root: `AsusTerbaik2-nyxchamp-root`, app user `nyxchamp`/`AsusTerbaik2-nyxchamp-app`)
+- Redis 7.0.15 (bind 127.0.0.1:6379, REDIS_CLIENT=predis di .env)
+- Python 3.12.3 + scraper venv di `/opt/nyxchamp/scraper/.venv`
+
+**Services jalan** (semua di satu mesin, no Docker):
+- `php artisan serve` → :8000 (Laravel HTTP)
+- `php artisan reverb:start --port=8080` → :8080 (WebSocket)
+- `php artisan queue:work --queue=scraping --tries=3 --backoff=60,300,900` (no port)
+- `scraper/.venv/bin/uvicorn app.main:app --host=0.0.0.0 --port=8001` (FastAPI scraper)
+- Start script: `/opt/nyxchamp/start-services.sh`
+
+**Resource usage runtime**: RAM 851Mi used / 3.2Gi available, disk 29% (6.7GB free). Aman.
+
+**Akses dev**:
+- Web: `http://10.10.1.12:8000` (login: `admin@nyxchamp.test`/`guru@nyxchamp.test`/`siswa@nyxchamp.test`, password `password`)
+- WebSocket: `ws://10.10.1.12:8080`
+- FastAPI docs: `http://10.10.1.12:8001/docs`
+- Admin trigger scrape: `http://10.10.1.12:8000/admin`
+
+**Scraper tetap pakai Firecrawl dari 10.10.1.28** (scraper server Proxmox VM existing). SSH via `sshpass` di scraper process, auto-start firecrawl kalau down. Firecrawl auto-stop 3 menit idle di 10.10.1.28 tetap aktif.
+
+**Catatan dev**:
+- Gunakan `COMPOSER_ALLOW_SUPERUSER=1` saat install via root
+- `npm install` butuh `--legacy-peer-deps` (vite 7 vs plugin-react 4.7.0 conflict)
+- Predis sebagai Redis client (`REDIS_CLIENT=predis` di .env) — sury.org tidak punya `php8.4-redis`
+- `bootstrap/cache` harus `mkdir` manual setelah clone (gitignored) — sudah di-start-services.sh
+- Untuk start Firecrawl otomatis, butuh `apt install sshpass` (sudah ter-install di setup)
