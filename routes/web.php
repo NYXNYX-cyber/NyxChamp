@@ -23,8 +23,21 @@ Route::get('/dashboard', function () {
 // Smoke-test RBAC: hanya admin yang boleh masuk.
 Route::middleware(['auth', 'verified', 'role:admin'])->group(function () {
     Route::get('/admin', function () {
-        return Inertia::render('Admin/Dashboard');
+        // Stats + flag trigger availability di-render via Inertia.
+        $stats = app(\App\Http\Controllers\Admin\ScraperController::class)->stats();
+        return \Inertia\Inertia::render('Admin/Dashboard', [
+            'stats' => $stats,
+        ]);
     })->name('admin.dashboard');
+
+    // Manual scrape trigger (emergency: jadwal auto gagal atau
+    // ada info lomba urgent mid-week).
+    Route::post('/admin/scrape/trigger', [\App\Http\Controllers\Admin\ScraperController::class, 'trigger'])
+        ->name('admin.scrape.trigger');
+
+    // Health check Python scraper service.
+    Route::post('/admin/scrape/health', [\App\Http\Controllers\Admin\ScraperController::class, 'health'])
+        ->name('admin.scrape.health');
 });
 
 // Chat real-time (lihat AGENTS.md §3.5 + Rancangan §4).
