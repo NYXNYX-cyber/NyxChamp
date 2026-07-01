@@ -15,6 +15,7 @@ Route::get('/', function () {
 // Filter via query string: ?level=nasional&status=open&q=design
 Route::get('/lomba', [CompetitionController::class, 'index'])->name('competitions.index');
 Route::get('/lomba/{competition:slug}', [CompetitionController::class, 'show'])->name('competitions.show');
+Route::get('/lomba/{competition:slug}/poster', [CompetitionController::class, 'poster'])->name('competitions.poster');
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');

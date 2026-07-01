@@ -55,6 +55,14 @@ return [
             'visibility' => 'private',
         ],
 
+        'competitions' => [
+            'driver' => 'local',
+            'root' => storage_path('app/competitions'),
+            'throw' => true,
+            'report' => true,
+            'visibility' => 'private',
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

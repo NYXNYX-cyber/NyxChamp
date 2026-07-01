@@ -28,7 +28,7 @@ class CompetitionIngestor
      * Ingest array items hasil scrape.
      *
      * @param  array<int, array<string, mixed>>  $items
-     * @return array{inserted: int, updated: int, skipped: int, rooms_created: int, errors: array<int, string>}
+     * @return array{inserted: int, updated: int, skipped: int, rooms_created: int, posters_downloaded: int, errors: array<int, string>}
      */
     public function ingest(array $items): array
     {
@@ -36,7 +36,10 @@ class CompetitionIngestor
         $updated = 0;
         $skipped = 0;
         $roomsCreated = 0;
+        $postersDownloaded = 0;
         $errors = [];
+
+        $posterDownloader = app(PosterDownloader::class);
 
         foreach ($items as $raw) {
             try {
@@ -45,6 +48,10 @@ class CompetitionIngestor
                     $skipped++;
                     continue;
                 }
+
+                // Pisahkan image_url (transient) dari data persistent.
+                $imageUrl = $normalized['image_url'] ?? null;
+                unset($normalized['image_url']);
 
                 $existing = Competition::where('hash_md5', $normalized['hash_md5'])->first();
 
@@ -58,6 +65,16 @@ class CompetitionIngestor
                     $inserted++;
                 } else {
                     $updated++;
+                }
+
+                // Download poster kalau baru atau belum ada poster_path.
+                if ($imageUrl && empty($competition->poster_path)) {
+                    $path = $posterDownloader->download($competition, $imageUrl);
+                    if ($path !== null) {
+                        $competition->poster_path = $path;
+                        $competition->save();
+                        $postersDownloaded++;
+                    }
                 }
 
                 if ($wasCreated) {
@@ -82,6 +99,7 @@ class CompetitionIngestor
             'updated' => $updated,
             'skipped' => $skipped,
             'rooms_created' => $roomsCreated,
+            'posters_downloaded' => $postersDownloaded,
             'errors' => $errors,
         ];
     }
@@ -137,7 +155,31 @@ class CompetitionIngestor
             'registration_fee' => $fee,
             'source_url' => Str::limit($sourceUrl, 255, ''),
             'hash_md5' => $hash,
+            // Transient — dipakai PosterDownloader, tidak disimpan langsung.
+            'image_url' => $this->normalizeImageUrl($raw['image_url'] ?? null),
         ];
+    }
+
+    /**
+     * Validasi URL image. Return null kalau invalid.
+     */
+    private function normalizeImageUrl(mixed $raw): ?string
+    {
+        if (! is_string($raw)) {
+            return null;
+        }
+        $url = trim($raw);
+        if ($url === '') {
+            return null;
+        }
+        if (! filter_var($url, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+        return Str::limit($url, 500, '');
     }
 
     /**

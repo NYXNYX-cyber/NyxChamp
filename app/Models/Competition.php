@@ -44,6 +44,7 @@ class Competition extends Model
         'registration_fee',
         'source_url',
         'hash_md5',
+        'poster_path',
     ];
 
     protected function casts(): array
@@ -94,6 +95,11 @@ class Competition extends Model
     public function isOpenForRegistration(): bool
     {
         return $this->registration_deadline?->isFuture() ?? false;
+    }
+
+    public function hasPoster(): bool
+    {
+        return ! empty($this->poster_path);
     }
 
     /**

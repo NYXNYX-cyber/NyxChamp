@@ -31,6 +31,10 @@ class Competition(BaseModel):
     level: Level
     registration_fee: float = Field(0.0, ge=0, le=99999999.99)
     source_url: str
+    # URL gambar utama/poster dari halaman detail lomba. Dipakai Laravel
+    # untuk download lokal dan simpan di storage/app/competitions/.
+    # Optional — kalau portal tidak punya hero image, null.
+    image_url: Optional[str] = Field(default=None, max_length=500)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

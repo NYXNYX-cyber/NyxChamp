@@ -34,6 +34,8 @@ type Props = PageProps & {
         source_url: string;
         is_open: boolean;
         rooms_count: number;
+        has_poster: boolean;
+        poster_url: string | null;
     };
     auth: {
         user: { role: 'student' | 'teacher' | 'admin' } | null;
@@ -113,6 +115,17 @@ export default function Show({ auth, competition }: Props) {
                         ← Kembali ke daftar lomba
                     </Link>
                 </div>
+
+                {competition.has_poster && competition.poster_url && (
+                    <div className="mb-6 overflow-hidden border-4 border-ink bg-cream shadow-brutal">
+                        <img
+                            src={competition.poster_url}
+                            alt={`Poster ${competition.title}`}
+                            className="block w-full object-cover"
+                            loading="lazy"
+                        />
+                    </div>
+                )}
 
                 <article className="brutal-box p-6 sm:p-8">
                     <div className="mb-4 flex flex-wrap items-center gap-2">

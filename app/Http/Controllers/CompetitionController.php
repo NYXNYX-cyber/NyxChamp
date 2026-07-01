@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Competition;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Halaman kompetisi untuk publik (read-only). Filter dilakukan
@@ -59,6 +61,10 @@ class CompetitionController extends Controller
             'registration_deadline' => $c->registration_deadline?->toDateString(),
             'registration_fee' => (float) $c->registration_fee,
             'is_open' => $c->isOpenForRegistration(),
+            'has_poster' => $c->hasPoster(),
+            'poster_url' => $c->hasPoster()
+                ? route('competitions.poster', ['competition' => $c->slug])
+                : null,
         ]);
 
         return Inertia::render('Competitions/Index', [
@@ -92,12 +98,54 @@ class CompetitionController extends Controller
                 'source_url' => $competition->source_url,
                 'is_open' => $competition->isOpenForRegistration(),
                 'rooms_count' => $competition->rooms_count,
+                'has_poster' => $competition->hasPoster(),
+                'poster_url' => $competition->hasPoster()
+                    ? route('competitions.poster', ['competition' => $competition->slug])
+                    : null,
             ],
             'auth' => [
                 'user' => auth()->user() ? [
                     'role' => auth()->user()->role,
                 ] : null,
             ],
+        ]);
+    }
+
+    /**
+     * Serve poster gambar dari disk private 'competitions'.
+     * Public route (poster adalah data publik, bukan user-generated).
+     * Return 404 kalau belum ada poster.
+     */
+    public function poster(Competition $competition): StreamedResponse|\Illuminate\Http\Response
+    {
+        $path = $competition->poster_path;
+        if (empty($path)) {
+            abort(404, 'Poster belum tersedia untuk lomba ini.');
+        }
+
+        $disk = Storage::disk('competitions');
+        if (! $disk->exists($path)) {
+            abort(404, 'File poster hilang di disk.');
+        }
+
+        $mime = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            default => 'application/octet-stream',
+        };
+
+        return response()->stream(function () use ($disk, $path) {
+            $stream = $disk->readStream($path);
+            if (is_resource($stream)) {
+                fpassthru($stream);
+                fclose($stream);
+            }
+        }, 200, [
+            'Content-Type' => $mime,
+            'Content-Length' => (string) $disk->size($path),
+            'Cache-Control' => 'public, max-age=86400', // 1 hari
         ]);
     }
 }

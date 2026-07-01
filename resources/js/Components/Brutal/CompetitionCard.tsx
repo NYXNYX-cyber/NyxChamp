@@ -12,6 +12,8 @@ export type CompetitionCardData = {
     registration_deadline: string | null;
     registration_fee: number;
     is_open: boolean;
+    has_poster: boolean;
+    poster_url: string | null;
 };
 
 const LEVEL_VARIANT: Record<Level, 'yellow' | 'pink' | 'emerald' | 'ink'> = {
@@ -59,6 +61,16 @@ export default function CompetitionCard({ competition }: { competition: Competit
             prefetch
         >
             <article className="relative border-3 border-ink bg-white p-5 shadow-brutal transition-transform duration-150 group-hover:-translate-x-[3px] group-hover:-translate-y-[3px] group-hover:shadow-brutal-lg group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-brutal-sm">
+                {competition.has_poster && competition.poster_url && (
+                    <div className="mb-3 -mx-5 -mt-5 overflow-hidden border-b-3 border-ink bg-cream">
+                        <img
+                            src={competition.poster_url}
+                            alt=""
+                            className="block h-32 w-full object-cover"
+                            loading="lazy"
+                        />
+                    </div>
+                )}
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                     <Badge variant={LEVEL_VARIANT[competition.level]}>
                         {LEVEL_LABEL[competition.level]}
