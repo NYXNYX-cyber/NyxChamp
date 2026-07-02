@@ -5,6 +5,11 @@ export interface User {
     email_verified_at?: string;
     role?: 'student' | 'teacher' | 'admin';
     institution?: string | null;
+    notification_preferences?: {
+        email_enabled: boolean;
+        web_enabled: boolean;
+        levels: string[];
+    };
 }
 
 export type PageProps<

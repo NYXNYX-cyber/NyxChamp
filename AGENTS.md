@@ -224,6 +224,10 @@ Test lulus: **167 passed, 504 assertions** (`php artisan test`) + **47 passed** 
 
 Sejak 2026-07-01, pindah ke server lokal **10.10.1.12** (hostname `NyxChamp`, Proxmox VM Ubuntu 24.04 fresh install, 4GB RAM / 9.8GB disk / 2 CPU). Server ini jadi dev workstation baru, bukan sandbox.
 
+**SMTP Email** (Fase 10): Gmail SMTP via `nyxhosting34@gmail.com` + App Password. Semua notifikasi lomba & undangan bimbingan terkirim real-time.
+
+**Start script**: `bash /home/nyx/Documents/NyxChamp/start-services.sh`
+
 **Stack ter-install lokal** (self-contained):
 - PHP 8.4.22 (sury.org repo, alternatif Ubuntu 8.3 default) + extensions: mysql, redis (via predis), bcmath, gd, intl, mbstring, curl, zip, opcache
 - Composer 2.10.1
@@ -237,7 +241,7 @@ Sejak 2026-07-01, pindah ke server lokal **10.10.1.12** (hostname `NyxChamp`, Pr
 - `php artisan reverb:start --port=8080` → :8080 (WebSocket)
 - `php artisan queue:work --queue=scraping --tries=3 --backoff=60,300,900` (no port)
 - `scraper/.venv/bin/uvicorn app.main:app --host=0.0.0.0 --port=8001` (FastAPI scraper)
-- Start script: `/opt/nyxchamp/start-services.sh`
+- Start script: `bash /home/nyx/Documents/NyxChamp/start-services.sh`
 
 **Resource usage runtime**: RAM 851Mi used / 3.2Gi available, disk 29% (6.7GB free). Aman.
 
@@ -253,5 +257,5 @@ Sejak 2026-07-01, pindah ke server lokal **10.10.1.12** (hostname `NyxChamp`, Pr
 - Gunakan `COMPOSER_ALLOW_SUPERUSER=1` saat install via root
 - `npm install` butuh `--legacy-peer-deps` (vite 7 vs plugin-react 4.7.0 conflict)
 - Predis sebagai Redis client (`REDIS_CLIENT=predis` di .env) — sury.org tidak punya `php8.4-redis`
-- `bootstrap/cache` harus `mkdir` manual setelah clone (gitignored) — sudah di-start-services.sh
+- `bootstrap/cache` harus `mkdir` manual setelah clone (gitignored) — sudah di `start-services.sh`
 - Untuk start Firecrawl otomatis, butuh `apt install sshpass` (sudah ter-install di setup)

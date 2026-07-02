@@ -22,7 +22,11 @@ export default function UpdateNotificationPreferencesForm({ className = '' }: { 
         levels: user.notification_preferences.levels ?? defaults.levels,
     } : defaults;
 
-    const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
+    const { data, setData, patch, errors, processing, recentlySuccessful } = useForm<{
+        email_enabled: boolean;
+        web_enabled: boolean;
+        levels: string[];
+    }>({
         email_enabled: prefs.email_enabled,
         web_enabled: prefs.web_enabled,
         levels: prefs.levels,

@@ -18,7 +18,6 @@ class NotificationControllerTest extends TestCase
     public function test_user_can_view_notifications_page(): void
     {
         $user = User::factory()->create();
-        dd(array_keys(\Illuminate\Support\Facades\Route::getRoutes()->getRoutesByName()));
 
         $response = $this->actingAs($user)->get(route('notifications.index'));
 

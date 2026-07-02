@@ -248,7 +248,7 @@ export default function Authenticated({
 
                         <div className="mt-3 space-y-1">
                         <ResponsiveNavLink href={route('notifications.index')} active={route().current('notifications.index')}>
-                            Notifikasi {unreadCount > 0 ?  : ''}
+                            Notifikasi {unreadCount > 0 ? `(${unreadCount})` : ''}
                         </ResponsiveNavLink>
                             <ResponsiveNavLink href={route('profile.edit')}>
                                 Profil
